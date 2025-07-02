@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Mediasoup Client</title>
+    <script src="./mediasoup-client.browser.js"></script>
+    <script src="./client.js"></script>
+    <style>
+      video,
+      audio {
+        width: 300px;
+        margin: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Mediasoup Demo</h1>
+    <h3>Local Stream</h3>
+    <video id="localVideo" autoplay playsinline controls muted></video>
+
+    <h3>Remote Streams</h3>
+    <div id="remoteMediaContainer"></div>
+  </body>
+</html>
