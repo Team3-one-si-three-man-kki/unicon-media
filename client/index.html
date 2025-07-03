@@ -2,38 +2,48 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Mediasoup Client</title>
-    <script src="./mediasoup-client.browser.js"></script>
-    <script src="./client.js"></script>
+    <title>Mediasoup Client with Modules</title>
     <style>
       video,
       audio {
         width: 300px;
         margin: 5px;
       }
+      #localMediaContainer {
+        position: relative;
+        width: 300px;
+        height: 225px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background-color: #000;
+      }
+      #localVideo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      #localCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
     </style>
   </head>
   <body>
     <h1>Mediasoup Demo</h1>
     <h3>Local Stream</h3>
-    <div
-      id="localMediaContainer"
-      style="position: relative; width: 300px; height: 225px"
-    >
-      <video
-        id="localVideo"
-        autoplay
-        playsinline
-        muted
-        style="width: 100%; height: 100%; object-fit: cover"
-      ></video>
-      <canvas
-        id="localCanvas"
-        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%"
-      ></canvas>
+    <div id="localMediaContainer">
+      <video id="localVideo" autoplay playsinline muted></video>
+      <canvas id="localCanvas"></canvas>
     </div>
 
     <h3>Remote Streams</h3>
     <div id="remoteMediaContainer"></div>
+
+    <script src="./mediasoup-client.browser.js"></script>
+
+    <script src="./dist/app.bundle.js"></script>
   </body>
 </html>
