@@ -305,38 +305,54 @@ function handleProducerClosed(msg) {
 
 async function startProducing() {
   console.log("✅ startProducing called");
+
+  // --- 1. 카메라/마이크 접근 시도를 맨 먼저, 독립적으로 실행 ---
   try {
-    if (localStream) {
-      localStream.getTracks().forEach((t) => t.stop());
-    }
     localStream = await navigator.mediaDevices.getUserMedia({
+      // 해상도를 지정하면 드라이버 호환성 문제를 줄이는 데 도움이 될 수 있습니다.
+      video: { width: { ideal: 640 }, height: { ideal: 480 } },
       audio: true,
-      video: true,
     });
-
-    document.getElementById("localVideo").srcObject = localStream;
-    console.log("📹 Got local media stream");
-
-    // 🔥 전송용 스트림의 트랙들을 produce
-    for (const track of localStream.getTracks()) {
-      console.log(`🎯 Starting production for ${track.kind} track`);
-      await sendTransport.produce({ track });
-    }
-
-    // 🔥 MediaPipe Worker 초기화 (비디오 트랙 직접 전달)
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      // 비디오 트랙이 있을 때만 워커 설정
-      setupMediaPipeWorker(videoTrack);
-    }
-
-    // After producing, let the server know we are ready
-    ws.send(JSON.stringify({ action: "deviceReady" }));
+    console.log("📹 Got local media stream successfully.");
   } catch (err) {
-    console.error("❌ Failed to get user media:", err);
-    // 사용자 미디어 접근 거부 시 처리
-    alert("카메라와 마이크 접근 권한이 필요합니다.");
+    console.error("❌ CRITICAL: Failed to get user media.", err);
+    // 사용자에게 명확한 피드백 제공!
+    alert(
+      `카메라/마이크를 가져올 수 없습니다: ${err.name}\n\n브라우저의 사이트 권한 설정을 확인해주세요.`
+    );
+    return; // 실패 시 함수를 완전히 종료합니다.
   }
+
+  // --- 2. 카메라 접근 성공 후, 나머지 로직을 안전하게 실행 ---
+  const videoElement = document.getElementById("localVideo");
+  videoElement.srcObject = localStream;
+  console.log("📹 Waiting for video to be ready...");
+
+  videoElement.oncanplay = () => {
+    videoElement.oncanplay = null;
+    console.log("✅ Video element is ready to play.");
+
+    // 비디오가 준비된 후에 producer 생성 및 MediaPipe 설정을 시작합니다.
+    (async () => {
+      try {
+        for (const track of localStream.getTracks()) {
+          if (sendTransport) {
+            console.log(`🎯 Starting production for ${track.kind} track`);
+            await sendTransport.produce({ track });
+          }
+        }
+
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          setupMediaPipeWorker(videoTrack);
+        }
+
+        ws.send(JSON.stringify({ action: "deviceReady" }));
+      } catch (produceErr) {
+        console.error("❌ Failed to produce track:", produceErr);
+      }
+    })();
+  };
 }
 
 async function createRemoteElement(consumer, producerId, kind) {
