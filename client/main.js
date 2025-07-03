@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // ❗️핵심: 사용자가 '졸음 감지 모듈'을 구매했는지 여부 (나중에는 서버에서 받아올 값)
-  const userHasAiModule = false;
+  const userHasAiModule = true;
 
   if (userHasAiModule) {
     const videoElement = document.getElementById("localVideo");
@@ -62,5 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 화상회의 클라이언트의 모든 준비를 시작합니다.
-  roomClient.join();
+  // 나중에 이 roomId는 URL이나 다른 방법으로 받아와야한다!!
+  const roomId = "my-first-room";
+  roomClient.join(roomId);
 });

@@ -1,156 +1,58 @@
 import mediasoup from "mediasoup";
 import os from "os";
+import { config } from "./config.js";
 
-let worker;
-let router;
+let workers = [];
+let nextWorkerIdx = 0;
 
-// 환경 변수 설정
-const config = {
-  // MediaSoup Worker 설정
-  worker: {
-    logLevel: process.env.NODE_ENV === "production" ? "warn" : "debug",
-    logTags: [
-      "info",
-      "ice",
-      "dtls",
-      "rtp",
-      "srtp",
-      "rtcp",
-      "rtx",
-      "bwe",
-      "score",
-      "simulcast",
-      "svc",
-    ],
-    rtcMinPort: parseInt(process.env.MEDIASOUP_MIN_PORT) || 40000,
-    rtcMaxPort: parseInt(process.env.MEDIASOUP_MAX_PORT) || 49999,
-  },
-
-  // 네트워크 설정
-  webRtcTransport: {
-    listenIps: [
-      {
-        ip: process.env.MEDIASOUP_LISTEN_IP || "0.0.0.0",
-        announcedIp: process.env.MEDIASOUP_ANNOUNCED_IP || getLocalIp(),
-      },
-    ],
-    enableUdp: true,
-    enableTcp: true,
-    preferUdp: true,
-    maxIncomingBitrate: 1500000,
-    maxOutgoingBitrate: 1500000,
-    initialAvailableOutgoingBitrate: 1000000,
-  },
-
-  // 미디어 코덱 설정
-  mediaCodecs: [
-    {
-      kind: "audio",
-      mimeType: "audio/opus",
-      clockRate: 48000,
-      channels: 2,
-    },
-    {
-      kind: "video",
-      mimeType: "video/VP8",
-      clockRate: 90000,
-      parameters: {
-        "x-google-start-bitrate": 1000,
-      },
-    },
-    {
-      kind: "video",
-      mimeType: "video/VP9",
-      clockRate: 90000,
-      parameters: {
-        "profile-id": 2,
-        "x-google-start-bitrate": 1000,
-      },
-    },
-    {
-      kind: "video",
-      mimeType: "video/h264",
-      clockRate: 90000,
-      parameters: {
-        "packetization-mode": 1,
-        "profile-level-id": "4d0032",
-        "level-asymmetry-allowed": 1,
-        "x-google-start-bitrate": 1000,
-      },
-    },
-  ],
-};
-
+// 1. 서버 시작 시 여러 개의 Worker를 생성하여 풀(pool)을 생성
 export async function startMediaServer() {
-  try {
-    console.log("🚀 Starting MediaSoup server...");
-
-    // 1. Worker 생성
-    worker = await mediasoup.createWorker({
+  const numWorkers = os.cpus().length;
+  console.log(`🚀 Starting ${numWorkers} MediaSoup workers...`);
+  console.log(
+    `🎯 RTP Port Range: ${config.worker.rtcMinPort}-${config.worker.rtcMaxPort}`
+  );
+  // 1. Worker 생성
+  for (let i = 0; i < numWorkers; i++) {
+    const worker = await mediasoup.createWorker({
       logLevel: config.worker.logLevel,
       logTags: config.worker.logTags,
       rtcMinPort: config.worker.rtcMinPort,
       rtcMaxPort: config.worker.rtcMaxPort,
     });
 
-    console.log("✅ MediaSoup Worker created");
-    console.log(`📊 Worker PID: ${worker.pid}`);
-    console.log(
-      `🎯 RTP Port Range: ${config.worker.rtcMinPort}-${config.worker.rtcMaxPort}`
-    );
-
     // 2. Worker 모니터링
     worker.on("died", (error) => {
-      console.error("❌ MediaSoup worker died:", error);
+      console.error(`❌ MediaSoup worker${worker.pid} died:`, error);
       // 프로덕션에서는 재시작 로직 구현
-      process.exit(1);
+      setTimeout(() => process.exit(1), 2000);
+      // 2초 이후 하는 이유는
+      // worker가 죽었을 때 바로 프로세스를 종료하면
+      // 다른 작업이 완료되지 않아 문제가 발생할 수 있기 때문
     });
 
-    // 3. 라우터 생성
-    router = await worker.createRouter({
-      mediaCodecs: config.mediaCodecs,
-    });
-
-    console.log("✅ MediaSoup Router created");
-    console.log(
-      `🎬 Supported codecs: ${config.mediaCodecs
-        .map((c) => c.mimeType)
-        .join(", ")}`
-    );
-
-    // 4. 주기적 상태 체크 (프로덕션 환경)
-    if (process.env.NODE_ENV === "production") {
-      setInterval(() => {
-        console.log(
-          `📈 Resource usage - RSS: ${Math.round(
-            process.memoryUsage().rss / 1024 / 1024
-          )}MB`
-        );
-      }, 60000); // 1분마다
-    }
-
-    return { worker, router };
-  } catch (error) {
-    console.error("❌ Failed to start MediaSoup server:", error);
-    throw error;
+    workers.push(worker);
+    console.log(`✅ MediaSoup Worker created Worker PID: ${worker.pid}`);
   }
 }
 
-export function getMediasoupRouter() {
-  if (!router) {
-    throw new Error("MediaSoup router not initialized");
-  }
+export async function getRouterForNewRoom() {
+  const worker = getNextWorker();
+  console.log(`♻️ Assigning new router from worker ${worker.pid}`);
+  const router = await worker.createRouter({
+    mediaCodecs: config.router.mediaCodecs,
+  });
   return router;
 }
 
-export function getMediasoupWorker() {
-  if (!worker) {
-    throw new Error("MediaSoup worker not initialized");
-  }
+// 라운드 로빈 방식으로 다음 워커를 할당합니다.
+function getNextWorker() {
+  const worker = workers[nextWorkerIdx];
+  nextWorkerIdx = (nextWorkerIdx + 1) % workers.length;
   return worker;
 }
 
-export async function createWebRtcTransport() {
+export async function createWebRtcTransport(router) {
   if (!router) {
     throw new Error("Router not initialized");
   }
@@ -160,8 +62,8 @@ export async function createWebRtcTransport() {
       config.webRtcTransport
     );
 
-    console.log("✅ WebRTC Transport created");
-    console.log(`🔗 Transport ID: ${transport.id}`);
+    console.log(`✅ WebRTC Transport created Transport ID: ${transport.id}`);
+    console.log(`🎧 Transport type: ${transport.type}`);
     console.log(
       `🌐 Listen IPs: ${JSON.stringify(config.webRtcTransport.listenIps)}`
     );
@@ -171,13 +73,19 @@ export async function createWebRtcTransport() {
       console.log(`🔐 DTLS state changed: ${dtlsState}`);
       if (dtlsState === "failed" || dtlsState === "closed") {
         console.warn(`⚠️ Transport ${transport.id} DTLS state: ${dtlsState}`);
+        // 클라이언트에게 DTLS 상태 변경 알림 로직 추가하기!!!!!!!!
       }
     });
 
     transport.on("icestatechange", (iceState) => {
-      console.log(`🧊 ICE state changed: ${iceState}`);
+      console.log(
+        `[transport:${transport.id}] 🧊 ICE state changed: ${iceState}`
+      );
       if (iceState === "failed" || iceState === "disconnected") {
-        console.warn(`⚠️ Transport ${transport.id} ICE state: ${iceState}`);
+        console.warn(
+          `⚠️ Transport ${transport.id} ICE state: ${iceState} ICE connection failed/disconnected`
+        );
+        // 클라이언트에게 ICE 상태 변경 알림 로직 추가하기!!!!!!!!
       }
     });
 
@@ -212,37 +120,25 @@ export function getServerStats() {
   };
 }
 
-// 로컬 IP 주소 자동 감지
-function getLocalIp() {
-  try {
-    const interfaces = os.networkInterfaces();
-    for (const name of Object.keys(interfaces)) {
-      for (const iface of interfaces[name]) {
-        if (iface.family === "IPv4" && !iface.internal) {
-          return iface.address;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn("⚠️ Could not detect local IP, using 127.0.0.1");
-  }
-  return "127.0.0.1";
-}
-
 // Graceful shutdown
 export async function shutdownMediaServer() {
   console.log("🔄 Shutting down MediaSoup server...");
 
   try {
-    if (router) {
-      router.close();
-      console.log("✅ Router closed");
-    }
+    // if (router) {
+    //   router.close();
+    //   console.log("✅ Router closed");
+    // }
 
-    if (worker) {
+    // if (worker) {
+    //   worker.close();
+    //   console.log("✅ Worker closed");
+    // }
+    console.log("🔄 Shutting down MediaSoup server...");
+    for (const worker of workers) {
       worker.close();
-      console.log("✅ Worker closed");
     }
+    console.log("✅ All MediaSoup workers closed.");
   } catch (error) {
     console.error("❌ Error during shutdown:", error);
   }

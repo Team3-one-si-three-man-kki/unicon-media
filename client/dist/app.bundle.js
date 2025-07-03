@@ -42,8 +42,13 @@
       this.pendingConsumeList = [];
     }
 
-    join() {
-      this.ws = new WebSocket("wss://192.168.5.133:3000");
+    join(roomId) {
+      // ✅ roomId를 인자로 받습니다.
+      if (!roomId) {
+        throw new Error("roomId is required to join a room");
+      }
+      // ✅ WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
+      this.ws = new WebSocket(`wss://192.168.0.11:3000/?roomId=${roomId}`);
 
       this.ws.onopen = () => {
         console.log("✅ WebSocket connected");
@@ -82,9 +87,9 @@
           case "newProducerAvailable":
             await this._handleNewProducerAvailable(msg);
             break;
-          case "consumeResponse":
-            await this._handleConsumeResponse(msg.data);
-            break;
+          // case "consumeResponse":
+          //   await this._handleConsumeResponse(msg.data);
+          //   break;
           case "producerClosed":
             this._handleProducerClosed(msg);
             break;
@@ -137,12 +142,16 @@
         "produce",
         async ({ kind, rtpParameters, appData }, callback, errback) => {
           try {
+            console.log(`🎬 Producing ${kind}...`);
+            // _sendRequest를 사용하여 서버에 produce 요청을 보냅니다.
             const { id } = await this._sendRequest("produce", {
               kind,
               rtpParameters,
+              appData,
             });
+            console.log(`✅ ${kind} production started with server id: ${id}`);
             callback({ id });
-            this.producers.set(id, { kind });
+            // this.producers.set(id, { kind });
           } catch (error) {
             errback(error);
           }
@@ -247,20 +256,31 @@
         return;
       }
       try {
-        const { id, rtpParameters } = await this._sendRequest("consume", {
+        const data = await this._sendRequest("consume", {
           rtpCapabilities: this.device.rtpCapabilities,
           producerId,
           kind,
         });
 
         const consumer = await this.recvTransport.consume({
-          id,
-          producerId,
-          kind,
-          rtpParameters,
+          id: data.id,
+          producerId: data.producerId,
+          kind: data.kind,
+          rtpParameters: data.rtpParameters,
         });
         this.consumers.set(consumer.id, consumer);
+
+        // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
         this.emit("new-consumer", consumer);
+
+        // 4. 생성된 consumer를 즉시 resume하도록 서버에 요청합니다.
+        console.log(`🚀 Resuming consumer ${consumer.id}`);
+        this.ws.send(
+          JSON.stringify({
+            action: "resumeConsumer",
+            data: { consumerId: consumer.id },
+          })
+        );
       } catch (error) {
         console.error(`❌ Failed to create consumer for ${producerId}:`, error);
       }
@@ -285,6 +305,113 @@
         });
         this.ws.send(JSON.stringify({ action, data }));
       });
+    }
+  }
+
+  // client/modules/MediaPipeModule.js
+
+
+  // ✅ EventEmitter를 상속받습니다.
+  class MediaPipeModule extends EventEmitter {
+    constructor(videoElement) {
+      super();
+
+      this.videoElement = videoElement;
+      this.worker = new Worker("./dist/mediapipe-worker.bundle.js");
+
+      // ✅ 1. 모든 상태와 상수를 클래스의 속성(this)으로 변경합니다.
+      this.isDrowsy = false;
+      this.isPresent = true;
+
+      this.LEFT_EYE = [33, 160, 158, 133, 153, 144];
+      this.RIGHT_EYE = [362, 385, 387, 263, 373, 380];
+      this.EAR_THRESH = 0.2;
+      this.DROWSY_FRAMES = 10;
+
+      this.closureFrames = 0;
+      this.absenceCounter = 0;
+      this.ABSENCE_CONSECUTIVE_FRAMES = 15; // 필요에 따라 조정
+
+      this.worker.onerror = (error) => {
+        console.error("❌ MediaPipe Worker 오류:", error);
+        this.emit("error", error); // 에러도 이벤트로 외부에 알립니다.
+      };
+    }
+
+    start() {
+      this.worker.onmessage = (event) => {
+        const { type, landmarks } = event.data;
+        if (type === "ready") {
+          this._startAnalysisLoop();
+        } else if (type === "result") {
+          this._handleAnalysisResult(landmarks);
+        }
+      };
+    }
+
+    _startAnalysisLoop() {
+      const AI_ANALYSIS_INTERVAL = 200;
+      const analyzeFrame = async () => {
+        if (this.worker && this.videoElement.readyState >= 2) {
+          const imageBitmap = await createImageBitmap(this.videoElement);
+          this.worker.postMessage({ imageBitmap }, [imageBitmap]);
+        }
+        setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
+      };
+      setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
+    }
+
+    _handleAnalysisResult(landmarks) {
+      // ✅ 2. 랜드마크 그리기 요청은 이벤트로만 방송합니다.
+      this.emit("landmarksUpdate", landmarks);
+
+      const previousIsPresent = this.isPresent;
+      const previousIsDrowsy = this.isDrowsy;
+
+      // --- 자리 비움 / 복귀 판단 ---
+      if (!landmarks) {
+        this.absenceCounter++;
+        if (this.absenceCounter > this.ABSENCE_CONSECUTIVE_FRAMES) {
+          this.isPresent = false;
+        }
+      } else {
+        this.absenceCounter = 0;
+        this.isPresent = true;
+      }
+
+      // --- 졸음 판단 (얼굴이 감지된 경우에만) ---
+      if (landmarks) {
+        const getEAR = (eyeIndices) => {
+          const pts = eyeIndices.map((i) => landmarks[i]);
+          const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+          return (
+            (d(pts[1], pts[5]) + d(pts[2], pts[4])) / (2 * d(pts[0], pts[3]))
+          );
+        };
+        const ear = (getEAR(this.LEFT_EYE) + getEAR(this.RIGHT_EYE)) / 2;
+
+        if (ear < this.EAR_THRESH) {
+          this.closureFrames++;
+          if (this.closureFrames >= this.DROWSY_FRAMES) {
+            this.isDrowsy = true;
+          }
+        } else {
+          this.isDrowsy = false;
+          this.closureFrames = 0;
+        }
+      } else {
+        // 얼굴이 없으면 졸음 상태는 아니므로 리셋
+        this.isDrowsy = false;
+        this.closureFrames = 0;
+      }
+
+      // ✅ 3. 상태가 '변경'되었을 때만 이벤트를 방송합니다.
+      if (previousIsPresent !== this.isPresent) {
+        this.emit("absenceUpdate", { isPresent: this.isPresent });
+      }
+      if (previousIsDrowsy !== this.isDrowsy) {
+        this.emit("drowsinessUpdate", { isDrowsy: this.isDrowsy });
+      }
     }
   }
 
@@ -502,8 +629,45 @@
       uiManager.removeRemoteTrack(producerId);
     });
 
+    {
+      const videoElement = document.getElementById("localVideo");
+      const aiModule = new MediaPipeModule(videoElement);
+
+      console.log("🤖 AI Module will be initialized.");
+
+      // --- 지휘자(main.js)가 각 모듈의 이벤트를 연결(구독)해줍니다. ---
+
+      // 1. RoomClient가 '로컬 스트림 준비 완료'를 방송하면, AI 모듈이 분석을 시작합니다.
+      roomClient.on("localStreamReady", () => {
+        console.log("🎧 Event: localStreamReady -> AI Module starting analysis.");
+        aiModule.start();
+      });
+
+      // 2. AI 모듈이 '랜드마크 업데이트'를 방송하면, UI 매니저가 화면에 그림을 그립니다.
+      aiModule.on("landmarksUpdate", (landmarks) => {
+        uiManager.drawFaceMesh(landmarks);
+      });
+
+      // 3. AI 모듈이 '상태 변경'을 방송하면, RoomClient가 서버로 데이터를 전송합니다.
+      aiModule.on("drowsinessUpdate", (data) => {
+        console.log("🎧 Event: drowsinessUpdate -> Sending status to server.");
+        roomClient.sendPeerStatus(data);
+      });
+      aiModule.on("absenceUpdate", (data) => {
+        console.log("🎧 Event: absenceUpdate -> Sending status to server.");
+        roomClient.sendPeerStatus(data);
+      });
+
+      // 4. AI 모듈에서 에러가 발생하면 콘솔에 출력합니다.
+      aiModule.on("error", (error) => {
+        console.error("🔥 AI Module Error:", error);
+      });
+    }
+
     // 화상회의 클라이언트의 모든 준비를 시작합니다.
-    roomClient.join();
+    // 나중에 이 roomId는 URL이나 다른 방법으로 받아와야한다!!
+    const roomId = "my-first-room";
+    roomClient.join(roomId);
   });
 
 })();

@@ -17,8 +17,13 @@ export class RoomClient extends EventEmitter {
     this.pendingConsumeList = [];
   }
 
-  join() {
-    this.ws = new WebSocket("wss://192.168.5.133:3000");
+  join(roomId) {
+    // ✅ roomId를 인자로 받습니다.
+    if (!roomId) {
+      throw new Error("roomId is required to join a room");
+    }
+    // ✅ WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
+    this.ws = new WebSocket(`wss://192.168.0.11:3000/?roomId=${roomId}`);
 
     this.ws.onopen = () => {
       console.log("✅ WebSocket connected");
@@ -57,9 +62,9 @@ export class RoomClient extends EventEmitter {
         case "newProducerAvailable":
           await this._handleNewProducerAvailable(msg);
           break;
-        case "consumeResponse":
-          await this._handleConsumeResponse(msg.data);
-          break;
+        // case "consumeResponse":
+        //   await this._handleConsumeResponse(msg.data);
+        //   break;
         case "producerClosed":
           this._handleProducerClosed(msg);
           break;
@@ -112,12 +117,16 @@ export class RoomClient extends EventEmitter {
       "produce",
       async ({ kind, rtpParameters, appData }, callback, errback) => {
         try {
+          console.log(`🎬 Producing ${kind}...`);
+          // _sendRequest를 사용하여 서버에 produce 요청을 보냅니다.
           const { id } = await this._sendRequest("produce", {
             kind,
             rtpParameters,
+            appData,
           });
+          console.log(`✅ ${kind} production started with server id: ${id}`);
           callback({ id });
-          this.producers.set(id, { kind });
+          // this.producers.set(id, { kind });
         } catch (error) {
           errback(error);
         }
@@ -222,20 +231,31 @@ export class RoomClient extends EventEmitter {
       return;
     }
     try {
-      const { id, rtpParameters } = await this._sendRequest("consume", {
+      const data = await this._sendRequest("consume", {
         rtpCapabilities: this.device.rtpCapabilities,
         producerId,
         kind,
       });
 
       const consumer = await this.recvTransport.consume({
-        id,
-        producerId,
-        kind,
-        rtpParameters,
+        id: data.id,
+        producerId: data.producerId,
+        kind: data.kind,
+        rtpParameters: data.rtpParameters,
       });
       this.consumers.set(consumer.id, consumer);
+
+      // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
       this.emit("new-consumer", consumer);
+
+      // 4. 생성된 consumer를 즉시 resume하도록 서버에 요청합니다.
+      console.log(`🚀 Resuming consumer ${consumer.id}`);
+      this.ws.send(
+        JSON.stringify({
+          action: "resumeConsumer",
+          data: { consumerId: consumer.id },
+        })
+      );
     } catch (error) {
       console.error(`❌ Failed to create consumer for ${producerId}:`, error);
     }
