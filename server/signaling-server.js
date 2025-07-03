@@ -83,6 +83,19 @@ async function handleMessage(ws, peer, msg) {
       break;
     }
 
+    case "updatePeerStatus": {
+      const { isPresent, isDrowsy } = data;
+      // peer 객체에 상태 저장
+      peer.status = { isPresent, isDrowsy, lastUpdate: Date.now() };
+      console.log(
+        `Status update from ${peer.peerId}: isPresent=${isPresent}, isDrowsy=${isDrowsy}`
+      );
+
+      // 여기에 관리자(교수자)에게 이 상태를 전달하는 로직 추가
+      // 예: room.getAdmin().ws.send(...)
+      break;
+    }
+
     // 🔥 새로운 액션: 클라이언트가 준비되었음을 알림
     case "deviceReady": {
       peer.deviceReady = true;
