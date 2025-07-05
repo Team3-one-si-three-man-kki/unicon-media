@@ -104,21 +104,22 @@ export async function createWebRtcTransport(router) {
 }
 
 // 서버 통계 정보 조회
-export function getServerStats() {
-  if (!router || !worker) {
-    return null;
-  }
+// 일단은 사용안함 -> 클로드 확인 필요
+// export function getServerStats() {
+//   if (!router || !worker) {
+//     return null;
+//   }
 
-  return {
-    workerId: worker.pid,
-    routerId: router.id,
-    transports: router.transports.size,
-    producers: router.producers.size,
-    consumers: router.consumers.size,
-    memory: process.memoryUsage(),
-    uptime: process.uptime(),
-  };
-}
+//   return {
+//     workerId: worker.pid,
+//     routerId: router.id,
+//     transports: router.transports.size,
+//     producers: router.producers.size,
+//     consumers: router.consumers.size,
+//     memory: process.memoryUsage(),
+//     uptime: process.uptime(),
+//   };
+// }
 
 // Graceful shutdown
 export async function shutdownMediaServer() {

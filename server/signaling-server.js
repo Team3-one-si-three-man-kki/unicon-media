@@ -78,6 +78,28 @@ wss.on("connection", async (ws, req) => {
   ws.on("close", cleanupCallback);
   ws.on("error", cleanupCallback);
 });
+/**
+ * ✅ 모든 Room과 Worker의 상태를 종합하여 반환하는 새로운 통계 함수
+ */
+async function getServerStats() {
+  const roomStats = [];
+  for (const room of rooms.values()) {
+    roomStats.push({
+      id: room.id,
+      routerId: room.router.id,
+      peers: room.peers.size,
+    });
+  }
+
+  // media-server에서 worker 정보를 가져오는 함수가 필요하다면 추가할 수 있습니다.
+  // 예: const workerStats = getWorkerStats();
+
+  return {
+    rooms: roomStats,
+    roomCount: rooms.size,
+    // workerStats: workerStats
+  };
+}
 
 function cleanup(room, peer) {
   console.log(`🧹 Cleaning up peer: ${peer.peerId} from room: ${room.id}`);
@@ -101,3 +123,18 @@ function cleanup(room, peer) {
     rooms.delete(room.id);
   }
 }
+
+// httpsServer 요청 핸들러 부분을 수정하여 아래 로직을 추가합니다.
+httpsServer.on("request", async (req, res) => {
+  if (req.url === "/stats" && req.method === "GET") {
+    try {
+      const stats = await getServerStats();
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(stats));
+    } catch (error) {
+      res.writeHead(500);
+      res.end("Server Error");
+    }
+  }
+  // 여기에 다른 HTTP 요청 처리 로직이 있다면 추가...
+});
