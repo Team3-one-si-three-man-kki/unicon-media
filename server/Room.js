@@ -200,12 +200,14 @@ export class Room {
           JSON.stringify({ action: "produceResponse", id: producer.id })
         );
 
-        producer.on("transportclose", () => {
+        producer.on("close", () => {
+          console.log(`Producer ${producer.id} transport closed`);
+          peer.producers.delete(producer.id);
+
           if (producer.kind === "audio") {
             this.audioLevelObserver.removeProducer({ producerId: producer.id });
           }
-          console.log(`Producer ${producer.id} transport closed`);
-          peer.producers.delete(producer.id);
+
           this.broadcast(peer.peerId, {
             action: "producerClosed",
             producerId: producer.id,
