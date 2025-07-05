@@ -4,10 +4,17 @@
     <meta charset="UTF-8" />
     <title>Mediasoup Client with Modules</title>
     <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background-color: #f4f4f4;
+      }
       video,
       audio {
         width: 300px;
         margin: 5px;
+        border: 1px solid #ccc;
       }
       #localMediaContainer {
         position: relative;
@@ -16,6 +23,7 @@
         border: 1px solid #ccc;
         border-radius: 4px;
         background-color: #000;
+        margin-bottom: 10px;
       }
       #localVideo {
         width: 100%;
@@ -29,21 +37,33 @@
         width: 100%;
         height: 100%;
       }
+      .controls button {
+        padding: 8px 12px;
+        margin: 0 5px;
+        font-size: 14px;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
     <h1>Mediasoup Demo</h1>
+
     <h3>Local Stream</h3>
     <div id="localMediaContainer">
       <video id="localVideo" autoplay playsinline muted></video>
       <canvas id="localCanvas"></canvas>
     </div>
 
+    <div class="controls"></div>
+      <button id="muteButton" disabled>음소거</button>
+      <button id="cameraOffButton" disabled>카메라 끄기</button>
+      <button id="screenShareButton" disabled>화면 공유</button>
+    </div>
+
     <h3>Remote Streams</h3>
     <div id="remoteMediaContainer"></div>
 
     <script src="./mediasoup-client.browser.js"></script>
-
     <script src="./dist/app.bundle.js"></script>
   </body>
 </html>

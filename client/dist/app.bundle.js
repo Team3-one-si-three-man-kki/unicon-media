@@ -144,14 +144,16 @@
           try {
             console.log(`🎬 Producing ${kind}...`);
             // _sendRequest를 사용하여 서버에 produce 요청을 보냅니다.
-            const { id } = await this._sendRequest("produce", {
+            const producer = await this._sendRequest("produce", {
               kind,
               rtpParameters,
               appData,
             });
-            console.log(`✅ ${kind} production started with server id: ${id}`);
-            callback({ id });
-            // this.producers.set(id, { kind });
+            console.log(
+              `✅ ${kind} production started with server id: ${producer.id}`
+            );
+            this.producers.set(producer.id, producer); // 실제 producer 객체 저장
+            callback({ id: producer.id });
           } catch (error) {
             errback(error);
           }
@@ -178,12 +180,24 @@
           (async () => {
             const videoTrack = this.localStream.getVideoTracks()[0];
             const audioTrack = this.localStream.getAudioTracks()[0];
-            if (videoTrack)
-              await this.sendTransport.produce({ track: videoTrack });
-            if (audioTrack)
-              await this.sendTransport.produce({ track: audioTrack });
+            let videoProducer, audioProducer;
 
+            if (videoTrack) {
+              videoProducer = await this.sendTransport.produce({
+                track: videoTrack,
+              });
+              this.producers.set(videoProducer.id, videoProducer); // 프로듀서 객체 저장
+            }
+            if (audioTrack) {
+              audioProducer = await this.sendTransport.produce({
+                track: audioTrack,
+              });
+              this.producers.set(audioProducer.id, audioProducer); // 프로듀서 객체 저장
+            }
             this.ws.send(JSON.stringify({ action: "deviceReady" }));
+            // ✅ [핵심 추가] 모든 produce가 끝난 후, 컨트롤 준비 완료 이벤트를 방송합니다.
+            console.log("✅ All producers created. Controls are now ready.");
+            this.emit("controlsReady");
           })();
         };
       } catch (err) {
@@ -305,6 +319,40 @@
         });
         this.ws.send(JSON.stringify({ action, data }));
       });
+    }
+    // ✅ 오디오 트랙을 끄거나 켭니다.
+    async setAudioEnabled(enabled) {
+      const audioProducer = this._findProducerByKind("audio");
+      if (!audioProducer) return;
+
+      if (enabled) {
+        await audioProducer.resume();
+      } else {
+        await audioProducer.pause();
+      }
+      // 필요하다면 서버에 음소거 상태를 알리는 시그널링을 보낼 수 있습니다.
+      // this.sendPeerStatus({ isMuted: !enabled });
+    }
+
+    // ✅ 비디오 트랙을 끄거나 켭니다.
+    async setVideoEnabled(enabled) {
+      const videoProducer = this._findProducerByKind("video");
+      if (!videoProducer) return;
+
+      if (enabled) {
+        await videoProducer.resume();
+      } else {
+        await videoProducer.pause();
+      }
+    }
+    _findProducerByKind(kind) {
+      // RoomClient가 관리하는 producers 맵에서 찾습니다.
+      for (const producer of this.producers.values()) {
+        if (producer.kind === kind) {
+          return producer;
+        }
+      }
+      return null;
     }
   }
 
@@ -535,6 +583,10 @@
       this.video = document.getElementById("localVideo");
       this.remoteMediaContainer = document.getElementById("remoteMediaContainer");
 
+      this.muteButton = document.getElementById("muteButton");
+      this.cameraOffButton = document.getElementById("cameraOffButton");
+      // this.screenShareButton = document.getElementById("screenShareButton");
+
       if (!this.remoteMediaContainer) {
         console.error(
           "❌ UIManager: #remoteMediaContainer 요소를 찾을 수 없습니다!"
@@ -542,6 +594,14 @@
       } else {
         console.log("✅ UIManager: #remoteMediaContainer 요소 초기화 완료.");
       }
+    }
+
+    // ✅ [핵심 추가] 모든 컨트롤 버튼을 활성화하는 메소드
+    enableControls() {
+      console.log("🛠️ Enabling media controls...");
+      this.muteButton.disabled = false;
+      this.cameraOffButton.disabled = false;
+      // this.screenShareButton.disabled = false;
     }
 
     drawFaceMesh(landmarks) {
@@ -615,6 +675,34 @@
 
     const uiManager = new UIManager();
     const roomClient = new RoomClient(uiManager);
+
+    let isAudioEnabled = true;
+    let isVideoEnabled = true;
+
+    // uiManager.screenShareButton.onclick = () => {
+    //   roomClient.toggleScreenSharing();
+    // };
+
+    // ✅ [핵심 추가] RoomClient가 컨트롤 준비 완료를 방송하면, UIManager가 버튼을 활성화합니다.
+    roomClient.on("controlsReady", () => {
+      uiManager.enableControls();
+
+      uiManager.cameraOffButton.onclick = () => {
+        isVideoEnabled = !isVideoEnabled;
+        roomClient.setVideoEnabled(isVideoEnabled);
+        uiManager.cameraOffButton.textContent = isVideoEnabled
+          ? "카메라 끄기"
+          : "카메라 켜기";
+      };
+
+      uiManager.muteButton.onclick = () => {
+        isAudioEnabled = !isAudioEnabled;
+        roomClient.setAudioEnabled(isAudioEnabled); // UIManager가 아닌 RoomClient를 직접 호출
+        uiManager.muteButton.textContent = isAudioEnabled
+          ? "음소거"
+          : "음소거 해제";
+      };
+    });
 
     // ✅ RoomClient가 방송하는 이벤트를 구독하여 UIManager에 작업을 지시합니다.
     roomClient.on("new-consumer", (consumer) => {

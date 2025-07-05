@@ -10,6 +10,34 @@ document.addEventListener("DOMContentLoaded", () => {
   const uiManager = new UIManager();
   const roomClient = new RoomClient(uiManager);
 
+  let isAudioEnabled = true;
+  let isVideoEnabled = true;
+
+  // uiManager.screenShareButton.onclick = () => {
+  //   roomClient.toggleScreenSharing();
+  // };
+
+  // ✅ [핵심 추가] RoomClient가 컨트롤 준비 완료를 방송하면, UIManager가 버튼을 활성화합니다.
+  roomClient.on("controlsReady", () => {
+    uiManager.enableControls();
+
+    uiManager.cameraOffButton.onclick = () => {
+      isVideoEnabled = !isVideoEnabled;
+      roomClient.setVideoEnabled(isVideoEnabled);
+      uiManager.cameraOffButton.textContent = isVideoEnabled
+        ? "카메라 끄기"
+        : "카메라 켜기";
+    };
+
+    uiManager.muteButton.onclick = () => {
+      isAudioEnabled = !isAudioEnabled;
+      roomClient.setAudioEnabled(isAudioEnabled); // UIManager가 아닌 RoomClient를 직접 호출
+      uiManager.muteButton.textContent = isAudioEnabled
+        ? "음소거"
+        : "음소거 해제";
+    };
+  });
+
   // ✅ RoomClient가 방송하는 이벤트를 구독하여 UIManager에 작업을 지시합니다.
   roomClient.on("new-consumer", (consumer) => {
     console.log("🎧 Event: new-consumer -> UI Manager adding remote track.");

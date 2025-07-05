@@ -119,14 +119,16 @@ export class RoomClient extends EventEmitter {
         try {
           console.log(`🎬 Producing ${kind}...`);
           // _sendRequest를 사용하여 서버에 produce 요청을 보냅니다.
-          const { id } = await this._sendRequest("produce", {
+          const producer = await this._sendRequest("produce", {
             kind,
             rtpParameters,
             appData,
           });
-          console.log(`✅ ${kind} production started with server id: ${id}`);
-          callback({ id });
-          // this.producers.set(id, { kind });
+          console.log(
+            `✅ ${kind} production started with server id: ${producer.id}`
+          );
+          this.producers.set(producer.id, producer); // 실제 producer 객체 저장
+          callback({ id: producer.id });
         } catch (error) {
           errback(error);
         }
@@ -153,12 +155,24 @@ export class RoomClient extends EventEmitter {
         (async () => {
           const videoTrack = this.localStream.getVideoTracks()[0];
           const audioTrack = this.localStream.getAudioTracks()[0];
-          if (videoTrack)
-            await this.sendTransport.produce({ track: videoTrack });
-          if (audioTrack)
-            await this.sendTransport.produce({ track: audioTrack });
+          let videoProducer, audioProducer;
 
+          if (videoTrack) {
+            videoProducer = await this.sendTransport.produce({
+              track: videoTrack,
+            });
+            this.producers.set(videoProducer.id, videoProducer); // 프로듀서 객체 저장
+          }
+          if (audioTrack) {
+            audioProducer = await this.sendTransport.produce({
+              track: audioTrack,
+            });
+            this.producers.set(audioProducer.id, audioProducer); // 프로듀서 객체 저장
+          }
           this.ws.send(JSON.stringify({ action: "deviceReady" }));
+          // ✅ [핵심 추가] 모든 produce가 끝난 후, 컨트롤 준비 완료 이벤트를 방송합니다.
+          console.log("✅ All producers created. Controls are now ready.");
+          this.emit("controlsReady");
         })();
       };
     } catch (err) {
@@ -280,5 +294,39 @@ export class RoomClient extends EventEmitter {
       });
       this.ws.send(JSON.stringify({ action, data }));
     });
+  }
+  // ✅ 오디오 트랙을 끄거나 켭니다.
+  async setAudioEnabled(enabled) {
+    const audioProducer = this._findProducerByKind("audio");
+    if (!audioProducer) return;
+
+    if (enabled) {
+      await audioProducer.resume();
+    } else {
+      await audioProducer.pause();
+    }
+    // 필요하다면 서버에 음소거 상태를 알리는 시그널링을 보낼 수 있습니다.
+    // this.sendPeerStatus({ isMuted: !enabled });
+  }
+
+  // ✅ 비디오 트랙을 끄거나 켭니다.
+  async setVideoEnabled(enabled) {
+    const videoProducer = this._findProducerByKind("video");
+    if (!videoProducer) return;
+
+    if (enabled) {
+      await videoProducer.resume();
+    } else {
+      await videoProducer.pause();
+    }
+  }
+  _findProducerByKind(kind) {
+    // RoomClient가 관리하는 producers 맵에서 찾습니다.
+    for (const producer of this.producers.values()) {
+      if (producer.kind === kind) {
+        return producer;
+      }
+    }
+    return null;
   }
 }

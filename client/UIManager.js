@@ -118,6 +118,10 @@ export class UIManager {
     this.video = document.getElementById("localVideo");
     this.remoteMediaContainer = document.getElementById("remoteMediaContainer");
 
+    this.muteButton = document.getElementById("muteButton");
+    this.cameraOffButton = document.getElementById("cameraOffButton");
+    // this.screenShareButton = document.getElementById("screenShareButton");
+
     if (!this.remoteMediaContainer) {
       console.error(
         "❌ UIManager: #remoteMediaContainer 요소를 찾을 수 없습니다!"
@@ -125,6 +129,14 @@ export class UIManager {
     } else {
       console.log("✅ UIManager: #remoteMediaContainer 요소 초기화 완료.");
     }
+  }
+
+  // ✅ [핵심 추가] 모든 컨트롤 버튼을 활성화하는 메소드
+  enableControls() {
+    console.log("🛠️ Enabling media controls...");
+    this.muteButton.disabled = false;
+    this.cameraOffButton.disabled = false;
+    // this.screenShareButton.disabled = false;
   }
 
   drawFaceMesh(landmarks) {
