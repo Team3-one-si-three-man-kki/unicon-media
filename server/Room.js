@@ -7,6 +7,56 @@ export class Room {
     this.id = roomId;
     this.router = router;
     this.peers = new Map();
+
+    //1. 오디오 레벨 감지를 위한 observer와 상태 변수
+    this.audioLevelObserver = null;
+    this.dominantSpeaker = null;
+    this._startAudioLevelObserver(); // 생성자에서 바로 옵저버 시작
+  }
+
+  // ✅ 2. AudioLevelObserver를 생성하고 이벤트를 구독하는 메소드
+  async _startAudioLevelObserver() {
+    this.audioLevelObserver = await this.router.createAudioLevelObserver({
+      maxEntries: 1,
+      threshold: -80,
+      interval: 800, // 800ms 마다 가장 큰 소리를 내는 사람을 감지
+    });
+
+    this.audioLevelObserver.on("volumes", (volumes) => {
+      const { producer, volume } = volumes[0];
+
+      // 현재 발언자가 바뀌었을 때만 클라이언트에게 알림
+      if (this.dominantSpeaker?.producerId !== producer.id) {
+        this.dominantSpeaker = {
+          producerId: producer.id,
+          peerId: producer.appData.peerId,
+        };
+        console.log(
+          `[Room ${this.id}] 🎤 New dominant speaker: peer ${this.dominantSpeaker.peerId}`
+        );
+
+        this.broadcast(null, {
+          // 모든 사람에게 방송
+          action: "dominantSpeaker",
+          data: {
+            producerId: producer.id,
+            peerId: this.dominantSpeaker.peerId,
+          },
+        });
+      }
+    });
+
+    this.audioLevelObserver.on("silence", () => {
+      // 방이 조용해지면 발언자 정보를 초기화
+      if (this.dominantSpeaker) {
+        this.dominantSpeaker = null;
+        console.log(`[Room ${this.id}] 🎤 Silence detected`);
+        this.broadcast(null, {
+          action: "dominantSpeaker",
+          data: { producerId: null },
+        });
+      }
+    });
   }
 
   addPeer(peer) {
@@ -127,8 +177,18 @@ export class Room {
 
       case "produce": {
         const { kind, rtpParameters } = data;
-        const producer = await peer.transport.produce({ kind, rtpParameters });
+        const producer = await peer.transport.produce({
+          kind,
+          rtpParameters,
+          appData: {
+            peerId: peer.peerId, // peerId 추가
+          },
+        });
         peer.producers.set(producer.id, producer);
+
+        if (producer.kind === "audio") {
+          this.audioLevelObserver.addProducer({ producerId: producer.id });
+        }
 
         this.broadcast(peer.peerId, {
           action: "newProducerAvailable",
@@ -141,6 +201,9 @@ export class Room {
         );
 
         producer.on("transportclose", () => {
+          if (producer.kind === "audio") {
+            this.audioLevelObserver.removeProducer({ producerId: producer.id });
+          }
           console.log(`Producer ${producer.id} transport closed`);
           peer.producers.delete(producer.id);
           this.broadcast(peer.peerId, {
