@@ -120,7 +120,7 @@ export class UIManager {
 
     this.muteButton = document.getElementById("muteButton");
     this.cameraOffButton = document.getElementById("cameraOffButton");
-    // this.screenShareButton = document.getElementById("screenShareButton");
+    this.screenShareButton = document.getElementById("screenShareButton");
 
     if (!this.remoteMediaContainer) {
       console.error(
@@ -136,7 +136,27 @@ export class UIManager {
     console.log("🛠️ Enabling media controls...");
     this.muteButton.disabled = false;
     this.cameraOffButton.disabled = false;
-    // this.screenShareButton.disabled = false;
+    // screenShareButton은 관리자만 활성화되므로 여기서는 처리하지 않음
+  }
+
+  // ✅ 관리자 여부에 따라 화면 공유 버튼 활성화
+  setAdminControls(isAdmin) {
+    console.log(`👑 Admin status: ${isAdmin}. Setting controls.`);
+    this.screenShareButton.disabled = !isAdmin;
+  }
+
+  // ✅ 화면 공유 상태에 따라 레이아웃을 변경하는 메소드
+  updateLayoutForScreenShare(isSharing) {
+    const localMediaContainer = document.getElementById("localMediaContainer");
+    if (isSharing) {
+      // 화면 공유 시, 로컬 비디오는 작게 만들고, 원격 컨테이너는 화면 공유에 집중
+      localMediaContainer.classList.add("small");
+      this.remoteMediaContainer.classList.add("screen-sharing-active");
+    } else {
+      // 화면 공유 종료 시, 원래대로 복원
+      localMediaContainer.classList.remove("small");
+      this.remoteMediaContainer.classList.remove("screen-sharing-active");
+    }
   }
 
   drawFaceMesh(landmarks) {
@@ -170,7 +190,7 @@ export class UIManager {
   }
 
   // 원격 비디오 엘리먼트 생성 등 다른 UI 관련 로직도 여기에 추가...
-  addRemoteTrack(track, producerId) {
+  addRemoteTrack(track, producerId, appData) {
     if (!this.remoteMediaContainer) {
       console.error(
         "❌ UIManager.addRemoteTrack: remoteMediaContainer가 유효하지 않습니다. 원격 트랙을 추가할 수 없습니다."
@@ -178,26 +198,53 @@ export class UIManager {
       return;
     }
 
-    const element = document.createElement(track.kind);
-    element.id = `remote-${producerId}`;
-    element.autoplay = true;
-    element.playsInline = true;
-    if (track.kind === "video") {
-      element.controls = true;
-    }
-    element.srcObject = new MediaStream([track]);
+    // 화면 공유 스트림인 경우 특별 처리
+    if (appData && appData.source === "screen") {
+      this.updateLayoutForScreenShare(true);
+      const screenShareWrapper = document.createElement("div");
+      screenShareWrapper.id = `remote-screen-${producerId}`;
+      screenShareWrapper.classList.add("screen-share-wrapper");
 
-    this.remoteMediaContainer.appendChild(element);
-    console.log(
-      `📺 Added remote ${track.kind} element for producer ${producerId}`
-    );
+      const element = document.createElement(track.kind);
+      element.autoplay = true;
+      element.playsInline = true;
+      element.srcObject = new MediaStream([track]);
+
+      screenShareWrapper.appendChild(element);
+      // 화면 공유는 보통 컨테이너의 맨 앞에 오도록 prepend 사용
+      this.remoteMediaContainer.prepend(screenShareWrapper);
+      console.log(`🖥️ Added screen share for producer ${producerId}`);
+    } else {
+      const element = document.createElement(track.kind);
+      element.id = `remote-${producerId}`;
+      element.autoplay = true;
+      element.playsInline = true;
+      if (track.kind === "video") {
+        element.controls = true;
+      }
+      element.srcObject = new MediaStream([track]);
+
+      this.remoteMediaContainer.appendChild(element);
+      console.log(
+        `📺 Added remote ${track.kind} element for producer ${producerId}`
+      );
+    }
   }
 
   removeRemoteTrack(producerId) {
-    const element = document.getElementById(`remote-${producerId}`);
-    if (element) {
-      element.remove();
-      console.log(`🗑️ Removed element for producer ${producerId}`);
+    // 일반 비디오와 화면 공유 엘리먼트를 모두 찾아 제거
+    const remoteVideo = document.getElementById(`remote-${producerId}`);
+    const screenShare = document.getElementById(`remote-screen-${producerId}`);
+
+    if (remoteVideo) {
+      remoteVideo.remove();
+      console.log(`🗑️ Removed video element for producer ${producerId}`);
+    }
+    if (screenShare) {
+      screenShare.remove();
+      console.log(`🗑️ Removed screen share for producer ${producerId}`);
+      // 화면 공유가 종료되었으므로 레이아웃 복원
+      this.updateLayoutForScreenShare(false);
     }
   }
 }

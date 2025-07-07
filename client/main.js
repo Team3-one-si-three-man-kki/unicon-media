@@ -12,10 +12,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let isAudioEnabled = true;
   let isVideoEnabled = true;
+  let isScreenSharing = false;
 
-  // uiManager.screenShareButton.onclick = () => {
-  //   roomClient.toggleScreenSharing();
-  // };
+  // ✅ 관리자 여부를 받아서 화면 공유 버튼 활성화
+  roomClient.on("adminStatus", (isAdmin) => {
+    uiManager.setAdminControls(isAdmin);
+  });
+
+  // ✅ 화면 공유 버튼 클릭 이벤트 핸들러
+  uiManager.screenShareButton.onclick = () => {
+    if (isScreenSharing) {
+      roomClient.stopScreenShare();
+    } else {
+      roomClient.startScreenShare();
+    }
+  };
+
+  // ✅ 화면 공유 상태가 변경되면 UI 업데이트
+  roomClient.on("screenShareState", ({ isSharing }) => {
+    isScreenSharing = isSharing;
+    uiManager.screenShareButton.textContent = isSharing
+      ? "공유 중지"
+      : "화면 공유";
+  });
 
   // ✅ [핵심 추가] RoomClient가 컨트롤 준비 완료를 방송하면, UIManager가 버튼을 활성화합니다.
   roomClient.on("controlsReady", () => {
@@ -41,7 +60,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // ✅ RoomClient가 방송하는 이벤트를 구독하여 UIManager에 작업을 지시합니다.
   roomClient.on("new-consumer", (consumer) => {
     console.log("🎧 Event: new-consumer -> UI Manager adding remote track.");
-    uiManager.addRemoteTrack(consumer.track, consumer.producerId);
+    // consumer에 포함된 appData를 함께 전달
+    uiManager.addRemoteTrack(
+      consumer.track,
+      consumer.producerId,
+      consumer.appData
+    );
   });
 
   roomClient.on("producer-closed", (producerId) => {
@@ -64,6 +88,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 1. RoomClient가 '로컬 스트림 준비 완료'를 방송하면, AI 모듈이 분석을 시작합니다.
     roomClient.on("localStreamReady", () => {
+      console.log(
+        "🤖 AI-DEBUG: localStreamReady event received. Attempting to start AI module."
+      );
       console.log("🎧 Event: localStreamReady -> AI Module starting analysis.");
       aiModule.start();
     });

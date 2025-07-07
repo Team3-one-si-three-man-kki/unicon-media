@@ -27,9 +27,8 @@ export class MediaPipeModule extends EventEmitter {
       console.error("❌ MediaPipe Worker 오류:", error);
       this.emit("error", error); // 에러도 이벤트로 외부에 알립니다.
     };
-  }
 
-  start() {
+    // ✅ 경쟁 상태(Race Condition)를 피하기 위해 onmessage 핸들러를 생성자에서 설정합니다.
     this.worker.onmessage = (event) => {
       const { type, landmarks } = event.data;
       if (type === "ready") {
@@ -40,12 +39,29 @@ export class MediaPipeModule extends EventEmitter {
     };
   }
 
+  // ✅ main.js에서 AI 모듈을 시작하기 위해 호출하는 메소드입니다.
+  // 이제 이 메소드는 비어 있어도 되지만, 명시적으로 시작점을 관리하기 위해 남겨둡니다.
+  // 중요한 점은 onmessage 핸들러가 이미 생성자에서 설정되었다는 것입니다.
+  start() {
+    // console.log(
+    //   "MediaPipeModule.start() called. Waiting for worker to be ready."
+    // );
+    // 실제 시작 로직은 worker가 'ready' 메시지를 보낼 때 트리거됩니다.
+  }
+
   _startAnalysisLoop() {
     const AI_ANALYSIS_INTERVAL = 200;
     const analyzeFrame = async () => {
       if (this.worker && this.videoElement.readyState >= 2) {
-        const imageBitmap = await createImageBitmap(this.videoElement);
-        this.worker.postMessage({ imageBitmap }, [imageBitmap]);
+        try {
+          const imageBitmap = await createImageBitmap(this.videoElement);
+          this.worker.postMessage({ imageBitmap }, [imageBitmap]);
+        } catch (error) {
+          console.error(
+            "❌ Error creating ImageBitmap in MediaPipeModule:",
+            error
+          );
+        }
       }
       setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
     };

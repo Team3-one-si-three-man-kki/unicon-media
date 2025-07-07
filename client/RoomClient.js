@@ -13,8 +13,11 @@ export class RoomClient extends EventEmitter {
     this.localStream = null;
     this.producers = new Map();
     this.consumers = new Map();
+    this.producerIdToConsumer = new Map(); // ✅ producerId -> consumer 맵
     this.actionCallbackMap = new Map();
     this.pendingConsumeList = [];
+    this.isAdmin = false; // ✅ 관리자 여부
+    this.screenProducer = null; // ✅ 화면 공유 프로듀서
   }
 
   join(roomId) {
@@ -23,7 +26,7 @@ export class RoomClient extends EventEmitter {
       throw new Error("roomId is required to join a room");
     }
     // ✅ WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
-    this.ws = new WebSocket(`wss://192.168.0.11:3000/?roomId=${roomId}`);
+    this.ws = new WebSocket(`wss://192.168.5.133:3000/?roomId=${roomId}`);
 
     this.ws.onopen = () => {
       console.log("✅ WebSocket connected");
@@ -47,6 +50,10 @@ export class RoomClient extends EventEmitter {
       }
 
       switch (msg.action) {
+        case "adminInfo":
+          this.isAdmin = msg.data.isAdmin;
+          this.emit("adminStatus", this.isAdmin); // UI 매니저에게 알림
+          break;
         case "rtpCapabilities":
           await this._handleRtpCapabilities(msg.data);
           break;
@@ -223,12 +230,11 @@ export class RoomClient extends EventEmitter {
     }
   }
 
-  async _handleNewProducerAvailable(producer) {
-    console.log("🆕 A new producer is available.", producer);
-    const consumeData = {
-      producerId: producer.producerId,
-      kind: producer.kind,
-    };
+  async _handleNewProducerAvailable(producerInfo) {
+    console.log("🆕 A new producer is available.", producerInfo);
+    const { producerId, kind, appData } = producerInfo;
+    const consumeData = { producerId, kind, appData }; // appData도 전달
+
     // ✅ recvTransport가 없으면 대기열에 추가하고, 있으면 바로 consume을 시도합니다.
     if (!this.recvTransport) {
       this.pendingConsumeList.push(consumeData);
@@ -237,7 +243,15 @@ export class RoomClient extends EventEmitter {
     }
   }
 
-  async _consume({ producerId, kind }) {
+  async _consume({ producerId, kind, appData }) {
+    // ✅ 중복 consumer 생성을 방지하는 가드
+    if (this.producerIdToConsumer.has(producerId)) {
+      console.warn(
+        `Consumer for producer ${producerId} already exists. Skipping.`
+      );
+      return;
+    }
+
     console.log(`📡 Requesting to consume producer ${producerId}`);
     if (!this.recvTransport) {
       console.warn("recvTransport is not ready, queuing consume request");
@@ -256,8 +270,10 @@ export class RoomClient extends EventEmitter {
         producerId: data.producerId,
         kind: data.kind,
         rtpParameters: data.rtpParameters,
+        appData: { ...appData }, // 서버에서 받은 appData를 consumer에 저장
       });
       this.consumers.set(consumer.id, consumer);
+      this.producerIdToConsumer.set(producerId, consumer); // ✅ 새 맵에 추가
 
       // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
       this.emit("new-consumer", consumer);
@@ -277,6 +293,12 @@ export class RoomClient extends EventEmitter {
 
   _handleProducerClosed({ producerId }) {
     console.log(`🚫 Producer ${producerId} closed.`);
+    const consumer = this.producerIdToConsumer.get(producerId);
+    if (consumer) {
+      consumer.close();
+      this.consumers.delete(consumer.id);
+      this.producerIdToConsumer.delete(producerId);
+    }
     this.emit("producer-closed", producerId);
   }
 
@@ -328,5 +350,59 @@ export class RoomClient extends EventEmitter {
       }
     }
     return null;
+  }
+
+  // ✅ 화면 공유 시작
+  async startScreenShare() {
+    if (this.screenProducer) {
+      console.warn("Screen sharing is already active.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+      });
+      const track = stream.getVideoTracks()[0];
+
+      this.screenProducer = await this.sendTransport.produce({
+        track,
+        appData: { source: "screen" },
+      });
+
+      // 브라우저의 '공유 중지' 버튼 클릭 감지
+      track.onended = () => {
+        console.log("Screen sharing stopped by browser button.");
+        this.stopScreenShare();
+      };
+
+      this.producers.set(this.screenProducer.id, this.screenProducer);
+      this.emit("screenShareState", { isSharing: true });
+    } catch (err) {
+      console.error("❌ Failed to start screen sharing:", err);
+    }
+  }
+
+  // ✅ 화면 공유 중지
+  async stopScreenShare() {
+    if (!this.screenProducer) {
+      console.warn("No active screen share to stop.");
+      return;
+    }
+
+    console.log("🚀 Requesting to stop screen share.");
+    // 서버에 화면 공유 중지를 명시적으로 요청
+    this.ws.send(
+      JSON.stringify({
+        action: "stopScreenShare",
+        data: { producerId: this.screenProducer.id },
+      })
+    );
+
+    // 로컬 프로듀서 정리
+    this.screenProducer.close(); // 스트림을 닫고 'close' 이벤트를 발생시킴
+    this.producers.delete(this.screenProducer.id);
+    this.screenProducer = null;
+    this.emit("screenShareState", { isSharing: false });
   }
 }

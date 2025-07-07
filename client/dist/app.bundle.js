@@ -38,8 +38,11 @@
       this.localStream = null;
       this.producers = new Map();
       this.consumers = new Map();
+      this.producerIdToConsumer = new Map(); // ✅ producerId -> consumer 맵
       this.actionCallbackMap = new Map();
       this.pendingConsumeList = [];
+      this.isAdmin = false; // ✅ 관리자 여부
+      this.screenProducer = null; // ✅ 화면 공유 프로듀서
     }
 
     join(roomId) {
@@ -48,7 +51,7 @@
         throw new Error("roomId is required to join a room");
       }
       // ✅ WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
-      this.ws = new WebSocket(`wss://192.168.0.11:3000/?roomId=${roomId}`);
+      this.ws = new WebSocket(`wss://192.168.5.133:3000/?roomId=${roomId}`);
 
       this.ws.onopen = () => {
         console.log("✅ WebSocket connected");
@@ -72,6 +75,10 @@
         }
 
         switch (msg.action) {
+          case "adminInfo":
+            this.isAdmin = msg.data.isAdmin;
+            this.emit("adminStatus", this.isAdmin); // UI 매니저에게 알림
+            break;
           case "rtpCapabilities":
             await this._handleRtpCapabilities(msg.data);
             break;
@@ -248,12 +255,11 @@
       }
     }
 
-    async _handleNewProducerAvailable(producer) {
-      console.log("🆕 A new producer is available.", producer);
-      const consumeData = {
-        producerId: producer.producerId,
-        kind: producer.kind,
-      };
+    async _handleNewProducerAvailable(producerInfo) {
+      console.log("🆕 A new producer is available.", producerInfo);
+      const { producerId, kind, appData } = producerInfo;
+      const consumeData = { producerId, kind, appData }; // appData도 전달
+
       // ✅ recvTransport가 없으면 대기열에 추가하고, 있으면 바로 consume을 시도합니다.
       if (!this.recvTransport) {
         this.pendingConsumeList.push(consumeData);
@@ -262,7 +268,15 @@
       }
     }
 
-    async _consume({ producerId, kind }) {
+    async _consume({ producerId, kind, appData }) {
+      // ✅ 중복 consumer 생성을 방지하는 가드
+      if (this.producerIdToConsumer.has(producerId)) {
+        console.warn(
+          `Consumer for producer ${producerId} already exists. Skipping.`
+        );
+        return;
+      }
+
       console.log(`📡 Requesting to consume producer ${producerId}`);
       if (!this.recvTransport) {
         console.warn("recvTransport is not ready, queuing consume request");
@@ -281,8 +295,10 @@
           producerId: data.producerId,
           kind: data.kind,
           rtpParameters: data.rtpParameters,
+          appData: { ...appData }, // 서버에서 받은 appData를 consumer에 저장
         });
         this.consumers.set(consumer.id, consumer);
+        this.producerIdToConsumer.set(producerId, consumer); // ✅ 새 맵에 추가
 
         // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
         this.emit("new-consumer", consumer);
@@ -302,6 +318,12 @@
 
     _handleProducerClosed({ producerId }) {
       console.log(`🚫 Producer ${producerId} closed.`);
+      const consumer = this.producerIdToConsumer.get(producerId);
+      if (consumer) {
+        consumer.close();
+        this.consumers.delete(consumer.id);
+        this.producerIdToConsumer.delete(producerId);
+      }
       this.emit("producer-closed", producerId);
     }
 
@@ -354,6 +376,60 @@
       }
       return null;
     }
+
+    // ✅ 화면 공유 시작
+    async startScreenShare() {
+      if (this.screenProducer) {
+        console.warn("Screen sharing is already active.");
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+        });
+        const track = stream.getVideoTracks()[0];
+
+        this.screenProducer = await this.sendTransport.produce({
+          track,
+          appData: { source: "screen" },
+        });
+
+        // 브라우저의 '공유 중지' 버튼 클릭 감지
+        track.onended = () => {
+          console.log("Screen sharing stopped by browser button.");
+          this.stopScreenShare();
+        };
+
+        this.producers.set(this.screenProducer.id, this.screenProducer);
+        this.emit("screenShareState", { isSharing: true });
+      } catch (err) {
+        console.error("❌ Failed to start screen sharing:", err);
+      }
+    }
+
+    // ✅ 화면 공유 중지
+    async stopScreenShare() {
+      if (!this.screenProducer) {
+        console.warn("No active screen share to stop.");
+        return;
+      }
+
+      console.log("🚀 Requesting to stop screen share.");
+      // 서버에 화면 공유 중지를 명시적으로 요청
+      this.ws.send(
+        JSON.stringify({
+          action: "stopScreenShare",
+          data: { producerId: this.screenProducer.id },
+        })
+      );
+
+      // 로컬 프로듀서 정리
+      this.screenProducer.close(); // 스트림을 닫고 'close' 이벤트를 발생시킴
+      this.producers.delete(this.screenProducer.id);
+      this.screenProducer = null;
+      this.emit("screenShareState", { isSharing: false });
+    }
   }
 
   // client/modules/MediaPipeModule.js
@@ -384,9 +460,8 @@
         console.error("❌ MediaPipe Worker 오류:", error);
         this.emit("error", error); // 에러도 이벤트로 외부에 알립니다.
       };
-    }
 
-    start() {
+      // ✅ 경쟁 상태(Race Condition)를 피하기 위해 onmessage 핸들러를 생성자에서 설정합니다.
       this.worker.onmessage = (event) => {
         const { type, landmarks } = event.data;
         if (type === "ready") {
@@ -397,12 +472,29 @@
       };
     }
 
+    // ✅ main.js에서 AI 모듈을 시작하기 위해 호출하는 메소드입니다.
+    // 이제 이 메소드는 비어 있어도 되지만, 명시적으로 시작점을 관리하기 위해 남겨둡니다.
+    // 중요한 점은 onmessage 핸들러가 이미 생성자에서 설정되었다는 것입니다.
+    start() {
+      // console.log(
+      //   "MediaPipeModule.start() called. Waiting for worker to be ready."
+      // );
+      // 실제 시작 로직은 worker가 'ready' 메시지를 보낼 때 트리거됩니다.
+    }
+
     _startAnalysisLoop() {
       const AI_ANALYSIS_INTERVAL = 200;
       const analyzeFrame = async () => {
         if (this.worker && this.videoElement.readyState >= 2) {
-          const imageBitmap = await createImageBitmap(this.videoElement);
-          this.worker.postMessage({ imageBitmap }, [imageBitmap]);
+          try {
+            const imageBitmap = await createImageBitmap(this.videoElement);
+            this.worker.postMessage({ imageBitmap }, [imageBitmap]);
+          } catch (error) {
+            console.error(
+              "❌ Error creating ImageBitmap in MediaPipeModule:",
+              error
+            );
+          }
         }
         setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
       };
@@ -585,7 +677,7 @@
 
       this.muteButton = document.getElementById("muteButton");
       this.cameraOffButton = document.getElementById("cameraOffButton");
-      // this.screenShareButton = document.getElementById("screenShareButton");
+      this.screenShareButton = document.getElementById("screenShareButton");
 
       if (!this.remoteMediaContainer) {
         console.error(
@@ -601,7 +693,27 @@
       console.log("🛠️ Enabling media controls...");
       this.muteButton.disabled = false;
       this.cameraOffButton.disabled = false;
-      // this.screenShareButton.disabled = false;
+      // screenShareButton은 관리자만 활성화되므로 여기서는 처리하지 않음
+    }
+
+    // ✅ 관리자 여부에 따라 화면 공유 버튼 활성화
+    setAdminControls(isAdmin) {
+      console.log(`👑 Admin status: ${isAdmin}. Setting controls.`);
+      this.screenShareButton.disabled = !isAdmin;
+    }
+
+    // ✅ 화면 공유 상태에 따라 레이아웃을 변경하는 메소드
+    updateLayoutForScreenShare(isSharing) {
+      const localMediaContainer = document.getElementById("localMediaContainer");
+      if (isSharing) {
+        // 화면 공유 시, 로컬 비디오는 작게 만들고, 원격 컨테이너는 화면 공유에 집중
+        localMediaContainer.classList.add("small");
+        this.remoteMediaContainer.classList.add("screen-sharing-active");
+      } else {
+        // 화면 공유 종료 시, 원래대로 복원
+        localMediaContainer.classList.remove("small");
+        this.remoteMediaContainer.classList.remove("screen-sharing-active");
+      }
     }
 
     drawFaceMesh(landmarks) {
@@ -635,7 +747,7 @@
     }
 
     // 원격 비디오 엘리먼트 생성 등 다른 UI 관련 로직도 여기에 추가...
-    addRemoteTrack(track, producerId) {
+    addRemoteTrack(track, producerId, appData) {
       if (!this.remoteMediaContainer) {
         console.error(
           "❌ UIManager.addRemoteTrack: remoteMediaContainer가 유효하지 않습니다. 원격 트랙을 추가할 수 없습니다."
@@ -643,26 +755,53 @@
         return;
       }
 
-      const element = document.createElement(track.kind);
-      element.id = `remote-${producerId}`;
-      element.autoplay = true;
-      element.playsInline = true;
-      if (track.kind === "video") {
-        element.controls = true;
-      }
-      element.srcObject = new MediaStream([track]);
+      // 화면 공유 스트림인 경우 특별 처리
+      if (appData && appData.source === "screen") {
+        this.updateLayoutForScreenShare(true);
+        const screenShareWrapper = document.createElement("div");
+        screenShareWrapper.id = `remote-screen-${producerId}`;
+        screenShareWrapper.classList.add("screen-share-wrapper");
 
-      this.remoteMediaContainer.appendChild(element);
-      console.log(
-        `📺 Added remote ${track.kind} element for producer ${producerId}`
-      );
+        const element = document.createElement(track.kind);
+        element.autoplay = true;
+        element.playsInline = true;
+        element.srcObject = new MediaStream([track]);
+
+        screenShareWrapper.appendChild(element);
+        // 화면 공유는 보통 컨테이너의 맨 앞에 오도록 prepend 사용
+        this.remoteMediaContainer.prepend(screenShareWrapper);
+        console.log(`🖥️ Added screen share for producer ${producerId}`);
+      } else {
+        const element = document.createElement(track.kind);
+        element.id = `remote-${producerId}`;
+        element.autoplay = true;
+        element.playsInline = true;
+        if (track.kind === "video") {
+          element.controls = true;
+        }
+        element.srcObject = new MediaStream([track]);
+
+        this.remoteMediaContainer.appendChild(element);
+        console.log(
+          `📺 Added remote ${track.kind} element for producer ${producerId}`
+        );
+      }
     }
 
     removeRemoteTrack(producerId) {
-      const element = document.getElementById(`remote-${producerId}`);
-      if (element) {
-        element.remove();
-        console.log(`🗑️ Removed element for producer ${producerId}`);
+      // 일반 비디오와 화면 공유 엘리먼트를 모두 찾아 제거
+      const remoteVideo = document.getElementById(`remote-${producerId}`);
+      const screenShare = document.getElementById(`remote-screen-${producerId}`);
+
+      if (remoteVideo) {
+        remoteVideo.remove();
+        console.log(`🗑️ Removed video element for producer ${producerId}`);
+      }
+      if (screenShare) {
+        screenShare.remove();
+        console.log(`🗑️ Removed screen share for producer ${producerId}`);
+        // 화면 공유가 종료되었으므로 레이아웃 복원
+        this.updateLayoutForScreenShare(false);
       }
     }
   }
@@ -678,10 +817,29 @@
 
     let isAudioEnabled = true;
     let isVideoEnabled = true;
+    let isScreenSharing = false;
 
-    // uiManager.screenShareButton.onclick = () => {
-    //   roomClient.toggleScreenSharing();
-    // };
+    // ✅ 관리자 여부를 받아서 화면 공유 버튼 활성화
+    roomClient.on("adminStatus", (isAdmin) => {
+      uiManager.setAdminControls(isAdmin);
+    });
+
+    // ✅ 화면 공유 버튼 클릭 이벤트 핸들러
+    uiManager.screenShareButton.onclick = () => {
+      if (isScreenSharing) {
+        roomClient.stopScreenShare();
+      } else {
+        roomClient.startScreenShare();
+      }
+    };
+
+    // ✅ 화면 공유 상태가 변경되면 UI 업데이트
+    roomClient.on("screenShareState", ({ isSharing }) => {
+      isScreenSharing = isSharing;
+      uiManager.screenShareButton.textContent = isSharing
+        ? "공유 중지"
+        : "화면 공유";
+    });
 
     // ✅ [핵심 추가] RoomClient가 컨트롤 준비 완료를 방송하면, UIManager가 버튼을 활성화합니다.
     roomClient.on("controlsReady", () => {
@@ -707,7 +865,12 @@
     // ✅ RoomClient가 방송하는 이벤트를 구독하여 UIManager에 작업을 지시합니다.
     roomClient.on("new-consumer", (consumer) => {
       console.log("🎧 Event: new-consumer -> UI Manager adding remote track.");
-      uiManager.addRemoteTrack(consumer.track, consumer.producerId);
+      // consumer에 포함된 appData를 함께 전달
+      uiManager.addRemoteTrack(
+        consumer.track,
+        consumer.producerId,
+        consumer.appData
+      );
     });
 
     roomClient.on("producer-closed", (producerId) => {
@@ -727,6 +890,9 @@
 
       // 1. RoomClient가 '로컬 스트림 준비 완료'를 방송하면, AI 모듈이 분석을 시작합니다.
       roomClient.on("localStreamReady", () => {
+        console.log(
+          "🤖 AI-DEBUG: localStreamReady event received. Attempting to start AI module."
+        );
         console.log("🎧 Event: localStreamReady -> AI Module starting analysis.");
         aiModule.start();
       });

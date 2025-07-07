@@ -7,6 +7,7 @@ export class Room {
     this.id = roomId;
     this.router = router;
     this.peers = new Map();
+    this.adminPeerId = null; // ✅ 관리자 peerId 저장
 
     //1. 오디오 레벨 감지를 위한 observer와 상태 변수
     this.audioLevelObserver = null;
@@ -61,6 +62,22 @@ export class Room {
 
   addPeer(peer) {
     this.peers.set(peer.peerId, peer);
+    // ✅ 첫 번째로 입장한 사용자를 관리자로 지정
+    if (!this.adminPeerId) {
+      this.adminPeerId = peer.peerId;
+      console.log(`[Room ${this.id}] 👑 Admin is ${peer.peerId}`);
+    }
+
+    // ✅ 현재 접속한 peer에게 관리자 여부와 ID를 알려줌
+    peer.ws.send(
+      JSON.stringify({
+        action: "adminInfo",
+        data: {
+          isAdmin: peer.peerId === this.adminPeerId,
+          adminPeerId: this.adminPeerId,
+        },
+      })
+    );
   }
 
   removePeer(peerId) {
@@ -73,7 +90,11 @@ export class Room {
       // ✅ 자기 자신의 producer는 목록에 포함하지 않습니다.
       if (otherPeer.peerId === peerId) continue;
       for (const producer of otherPeer.producers.values()) {
-        producerList.push({ producerId: producer.id, kind: producer.kind });
+        producerList.push({
+          producerId: producer.id,
+          kind: producer.kind,
+          appData: producer.appData, // ✅ appData 추가
+        });
       }
     }
     return producerList;
@@ -176,12 +197,13 @@ export class Room {
       }
 
       case "produce": {
-        const { kind, rtpParameters } = data;
+        const { kind, rtpParameters, appData } = data; // ✅ appData를 클라이언트에서 직접 받음
         const producer = await peer.transport.produce({
           kind,
           rtpParameters,
           appData: {
-            peerId: peer.peerId, // peerId 추가
+            ...appData, // 화면 공유 정보 등
+            peerId: peer.peerId, // peerId는 서버에서 확실하게 추가
           },
         });
         peer.producers.set(producer.id, producer);
@@ -194,6 +216,7 @@ export class Room {
           action: "newProducerAvailable",
           producerId: producer.id,
           kind: producer.kind,
+          appData: producer.appData, // ✅ appData도 함께 브로드캐스트
         });
 
         peer.ws.send(
@@ -208,7 +231,7 @@ export class Room {
             this.audioLevelObserver.removeProducer({ producerId: producer.id });
           }
 
-          this.broadcast(peer.peerId, {
+          this.broadcast(null, {
             action: "producerClosed",
             producerId: producer.id,
           });
@@ -281,6 +304,25 @@ export class Room {
         // 다른 사람에게 상태를 알릴 필요가 있다면 여기서 broadcast
         // this.broadcast(peer.peerId, { action: 'peerStatusUpdated', peerId: peer.peerId, status: data });
         console.log("누군가 졸거나 자리비움", peer.peerId, data);
+        break;
+      }
+
+      case "stopScreenShare": {
+        const { producerId } = data;
+        const producer = peer.producers.get(producerId);
+        if (producer) {
+          console.log(
+            `🎬 Closing screen share producer ${producerId} by request.`
+          );
+
+          // 'close' 이벤트에만 의존하지 않고, 여기서 직접 브로드캐스트를 실행합니다.
+          this.broadcast(null, {
+            action: "producerClosed",
+            producerId: producer.id,
+          });
+
+          producer.close(); // 리소스 정리를 위해 close는 여전히 호출합니다.
+        }
         break;
       }
     }
