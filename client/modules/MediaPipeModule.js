@@ -52,7 +52,13 @@ export class MediaPipeModule extends EventEmitter {
   _startAnalysisLoop() {
     const AI_ANALYSIS_INTERVAL = 200;
     const analyzeFrame = async () => {
-      if (this.worker && this.videoElement.readyState >= 2) {
+      // ✅ 비디오 너비/높이가 0이 아니고, 상태가 준비되었을 때만 분석
+      if (
+        this.worker &&
+        this.videoElement.readyState >= 2 &&
+        this.videoElement.videoWidth > 0 &&
+        this.videoElement.videoHeight > 0
+      ) {
         try {
           const imageBitmap = await createImageBitmap(this.videoElement);
           this.worker.postMessage({ imageBitmap }, [imageBitmap]);

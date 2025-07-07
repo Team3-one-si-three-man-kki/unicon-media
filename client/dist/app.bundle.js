@@ -403,6 +403,7 @@
 
         this.producers.set(this.screenProducer.id, this.screenProducer);
         this.emit("screenShareState", { isSharing: true });
+        this.emit("local-screen-share-started", this.screenProducer.track); // ✅ 로컬 UI를 위한 이벤트
       } catch (err) {
         console.error("❌ Failed to start screen sharing:", err);
       }
@@ -425,10 +426,12 @@
       );
 
       // 로컬 프로듀서 정리
+      const producerId = this.screenProducer.id;
       this.screenProducer.close(); // 스트림을 닫고 'close' 이벤트를 발생시킴
-      this.producers.delete(this.screenProducer.id);
+      this.producers.delete(producerId);
       this.screenProducer = null;
       this.emit("screenShareState", { isSharing: false });
+      this.emit("local-screen-share-stopped"); // ✅ 로컬 UI 정리를 위한 이벤트
     }
   }
 
@@ -804,6 +807,34 @@
         this.updateLayoutForScreenShare(false);
       }
     }
+
+    // ✅ 관리자 자신의 화면 공유를 UI에 추가하는 메소드
+    addLocalScreenShare(track) {
+      this.updateLayoutForScreenShare(true);
+      const screenShareWrapper = document.createElement("div");
+      screenShareWrapper.id = "local-screen-share-wrapper"; // 로컬 공유는 ID가 고정됨
+      screenShareWrapper.classList.add("screen-share-wrapper");
+
+      const element = document.createElement(track.kind);
+      element.autoplay = true;
+      element.playsInline = true;
+      element.muted = true; // 자기 자신의 소리는 음소거
+      element.srcObject = new MediaStream([track]);
+
+      screenShareWrapper.appendChild(element);
+      this.remoteMediaContainer.prepend(screenShareWrapper);
+      console.log("🖥️ Added local screen share to UI.");
+    }
+
+    // ✅ 로컬 화면 공유를 UI에서 제거하는 메소드
+    removeLocalScreenShare() {
+      const element = document.getElementById("local-screen-share-wrapper");
+      if (element) {
+        element.remove();
+        console.log("🗑️ Removed local screen share from UI.");
+        this.updateLayoutForScreenShare(false); // 레이아웃 복원
+      }
+    }
   }
 
   // client/main.js
@@ -878,6 +909,15 @@
         "🎧 Event: producer-closed -> UI Manager removing remote track."
       );
       uiManager.removeRemoteTrack(producerId);
+    });
+
+    // ✅ 로컬 화면 공유 시작/중지 이벤트 처리
+    roomClient.on("local-screen-share-started", (track) => {
+      uiManager.addLocalScreenShare(track);
+    });
+
+    roomClient.on("local-screen-share-stopped", () => {
+      uiManager.removeLocalScreenShare();
     });
 
     {

@@ -378,6 +378,7 @@ export class RoomClient extends EventEmitter {
 
       this.producers.set(this.screenProducer.id, this.screenProducer);
       this.emit("screenShareState", { isSharing: true });
+      this.emit("local-screen-share-started", this.screenProducer.track); // ✅ 로컬 UI를 위한 이벤트
     } catch (err) {
       console.error("❌ Failed to start screen sharing:", err);
     }
@@ -400,9 +401,11 @@ export class RoomClient extends EventEmitter {
     );
 
     // 로컬 프로듀서 정리
+    const producerId = this.screenProducer.id;
     this.screenProducer.close(); // 스트림을 닫고 'close' 이벤트를 발생시킴
-    this.producers.delete(this.screenProducer.id);
+    this.producers.delete(producerId);
     this.screenProducer = null;
     this.emit("screenShareState", { isSharing: false });
+    this.emit("local-screen-share-stopped"); // ✅ 로컬 UI 정리를 위한 이벤트
   }
 }

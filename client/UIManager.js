@@ -247,4 +247,32 @@ export class UIManager {
       this.updateLayoutForScreenShare(false);
     }
   }
+
+  // ✅ 관리자 자신의 화면 공유를 UI에 추가하는 메소드
+  addLocalScreenShare(track) {
+    this.updateLayoutForScreenShare(true);
+    const screenShareWrapper = document.createElement("div");
+    screenShareWrapper.id = "local-screen-share-wrapper"; // 로컬 공유는 ID가 고정됨
+    screenShareWrapper.classList.add("screen-share-wrapper");
+
+    const element = document.createElement(track.kind);
+    element.autoplay = true;
+    element.playsInline = true;
+    element.muted = true; // 자기 자신의 소리는 음소거
+    element.srcObject = new MediaStream([track]);
+
+    screenShareWrapper.appendChild(element);
+    this.remoteMediaContainer.prepend(screenShareWrapper);
+    console.log("🖥️ Added local screen share to UI.");
+  }
+
+  // ✅ 로컬 화면 공유를 UI에서 제거하는 메소드
+  removeLocalScreenShare() {
+    const element = document.getElementById("local-screen-share-wrapper");
+    if (element) {
+      element.remove();
+      console.log("🗑️ Removed local screen share from UI.");
+      this.updateLayoutForScreenShare(false); // 레이아웃 복원
+    }
+  }
 }

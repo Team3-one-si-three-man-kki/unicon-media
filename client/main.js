@@ -75,6 +75,15 @@ document.addEventListener("DOMContentLoaded", () => {
     uiManager.removeRemoteTrack(producerId);
   });
 
+  // ✅ 로컬 화면 공유 시작/중지 이벤트 처리
+  roomClient.on("local-screen-share-started", (track) => {
+    uiManager.addLocalScreenShare(track);
+  });
+
+  roomClient.on("local-screen-share-stopped", () => {
+    uiManager.removeLocalScreenShare();
+  });
+
   // ❗️핵심: 사용자가 '졸음 감지 모듈'을 구매했는지 여부 (나중에는 서버에서 받아올 값)
   const userHasAiModule = true;
 
