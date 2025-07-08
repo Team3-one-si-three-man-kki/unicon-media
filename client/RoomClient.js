@@ -1,9 +1,6 @@
 // client/RoomClient.js (최종 완성 버전)
 import { EventEmitter } from "./utils/EventEmitter.js";
 
-import dotenv from "dotenv";
-dotenv.config(); // 이 코드를 최상단에 추가합니다.
-
 export class RoomClient extends EventEmitter {
   constructor(uiManager) {
     super();
@@ -33,7 +30,7 @@ export class RoomClient extends EventEmitter {
     // 개발 환경에서 self-signed certificate를 사용하는 경우, 브라우저에서 경고를 무시해야 할 수 있습니다.
     // 프로덕션 환경에서는 유효한 SSL/TLS 인증서를 사용해야 합니다.
     this.ws = new WebSocket(
-      `wss://${process.env.MEDIASOUP_ANNOUNCED_IP}/?roomId=${roomId}`
+      `wss://${process.env.WEBSOCKET_URL}/?roomId=${roomId}`
     );
     this.ws.onopen = () => {
       console.log("✅ WebSocket connected");

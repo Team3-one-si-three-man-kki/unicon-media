@@ -1,6 +1,9 @@
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 import copy from "rollup-plugin-copy";
+import replace from "@rollup/plugin-replace";
+import dotenv from "dotenv";
+dotenv.config();
 
 export default {
   // ✅ 1. 진입점(Input)을 main.js로 변경합니다.
@@ -40,6 +43,12 @@ export default {
       ],
       // 번들링이 완료된 후 복사 작업을 수행합니다.
       hook: "writeBundle",
+    }),
+    replace({
+      preventAssignment: true,
+      "process.env.WEBSOCKET_URL": JSON.stringify(
+        process.env.WEBSOCKET_URL || "localhost"
+      ),
     }),
   ],
 };
