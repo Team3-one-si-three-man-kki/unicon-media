@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config(); // 이 코드를 최상단에 추가합니다.
 import os from "os";
 
 // 로컬 IP 주소 자동 감지
@@ -45,6 +47,12 @@ export const config = {
       {
         ip: process.env.MEDIASOUP_LISTEN_IP || "0.0.0.0",
         announcedIp: process.env.MEDIASOUP_ANNOUNCED_IP || getLocalIp(),
+      },
+    ],
+    //STUN 서버 설정
+    iceServers: [
+      {
+        urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"],
       },
     ],
     enableUdp: true,

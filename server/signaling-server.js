@@ -1,4 +1,6 @@
 // server/signaling-server.js
+import dotenv from "dotenv";
+dotenv.config(); // 이 코드를 최상단에 추가합니다.
 
 import fs from "fs";
 import https from "https";
@@ -26,6 +28,7 @@ httpsServer.listen(PORT, () => {
   console.log(
     `✅ HTTPS + WSS signaling server running on https://localhost:${PORT}`
   );
+  console.log(`${process.env.MEDIASOUP_ANNOUNCED_IP}`);
 });
 
 wss.on("connection", async (ws, req) => {

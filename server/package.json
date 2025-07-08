@@ -1,0 +1,17 @@
+{
+  "name": "mediasoup-server",
+  "version": "1.0.0",
+  "description": "Mediasoup Signaling and Media Server",
+  "main": "signaling-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node signaling-server.js",
+    "start:prod": "NODE_ENV=production node signaling-server.js"
+  },
+  "dependencies": {
+    "mediasoup": "^3.11.0",
+    "ws": "^8.13.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
