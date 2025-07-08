@@ -1,3 +1,5 @@
 /node_modules
-/dist
+/client/dist
 /*.pem
+*.env
+/client/dist/app.bundle.js
