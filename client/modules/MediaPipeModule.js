@@ -22,6 +22,7 @@ export class MediaPipeModule extends EventEmitter {
     this.closureFrames = 0;
     this.absenceCounter = 0;
     this.ABSENCE_CONSECUTIVE_FRAMES = 15; // 필요에 따라 조정
+    this.analysisIntervalId = null; // ✅ AI 분석 루프의 ID를 저장할 변수
 
     this.worker.onerror = (error) => {
       console.error("❌ MediaPipe Worker 오류:", error);
@@ -39,20 +40,15 @@ export class MediaPipeModule extends EventEmitter {
     };
   }
 
-  // ✅ main.js에서 AI 모듈을 시작하기 위해 호출하는 메소드입니다.
-  // 이제 이 메소드는 비어 있어도 되지만, 명시적으로 시작점을 관리하기 위해 남겨둡니다.
-  // 중요한 점은 onmessage 핸들러가 이미 생성자에서 설정되었다는 것입니다.
+  // ✅ AI 분석을 시작하는 메소드
   start() {
-    // console.log(
-    //   "MediaPipeModule.start() called. Waiting for worker to be ready."
-    // );
-    // 실제 시작 로직은 worker가 'ready' 메시지를 보낼 때 트리거됩니다.
-  }
-
-  _startAnalysisLoop() {
+    if (this.analysisIntervalId) {
+      console.log("AI analysis is already running.");
+      return;
+    }
+    console.log("🚀 Starting AI analysis loop.");
     const AI_ANALYSIS_INTERVAL = 200;
-    const analyzeFrame = async () => {
-      // ✅ 비디오 너비/높이가 0이 아니고, 상태가 준비되었을 때만 분석
+    this.analysisIntervalId = setInterval(async () => {
       if (
         this.worker &&
         this.videoElement.readyState >= 2 &&
@@ -69,9 +65,24 @@ export class MediaPipeModule extends EventEmitter {
           );
         }
       }
-      setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
-    };
-    setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
+    }, AI_ANALYSIS_INTERVAL);
+  }
+
+  // ✅ AI 분석을 중지하는 메소드
+  stop() {
+    if (!this.analysisIntervalId) {
+      console.log("AI analysis is not running.");
+      return;
+    }
+    console.log("🛑 Stopping AI analysis loop.");
+    clearInterval(this.analysisIntervalId);
+    this.analysisIntervalId = null;
+  }
+
+  _startAnalysisLoop() {
+    // 이제 이 함수는 start() 메소드에 의해 관리되므로 비워두거나,
+    // 초기 자동 시작이 필요하다면 로직을 유지할 수 있습니다.
+    // 현재 요구사항에서는 외부에서 제어하므로 비워둡니다.
   }
 
   _handleAnalysisResult(landmarks) {

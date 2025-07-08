@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("🚀 Application starting...");
 
   const uiManager = new UIManager();
+  let aiModule = null; // ✅ aiModule을 더 넓은 스코프에서 선언
   const roomClient = new RoomClient(uiManager);
 
   let isAudioEnabled = true;
@@ -46,6 +47,15 @@ document.addEventListener("DOMContentLoaded", () => {
       uiManager.cameraOffButton.textContent = isVideoEnabled
         ? "카메라 끄기"
         : "카메라 켜기";
+
+      // ✅ AI 모듈 제어 로직 추가
+      if (aiModule) {
+        if (isVideoEnabled) {
+          aiModule.start(); // 카메라 켜질 때 AI 시작
+        } else {
+          aiModule.stop(); // 카메라 꺼질 때 AI 중지
+        }
+      }
     };
 
     uiManager.muteButton.onclick = () => {
@@ -89,7 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (userHasAiModule) {
     const videoElement = document.getElementById("localVideo");
-    const aiModule = new MediaPipeModule(videoElement);
+    aiModule = new MediaPipeModule(videoElement); // ✅ aiModule 초기화
 
     console.log("🤖 AI Module will be initialized.");
 
@@ -101,7 +111,10 @@ document.addEventListener("DOMContentLoaded", () => {
         "🤖 AI-DEBUG: localStreamReady event received. Attempting to start AI module."
       );
       console.log("🎧 Event: localStreamReady -> AI Module starting analysis.");
-      aiModule.start();
+      if (aiModule) {
+        // ✅ aiModule이 초기화되었는지 확인 후 시작
+        aiModule.start();
+      }
     });
 
     // 2. AI 모듈이 '랜드마크 업데이트'를 방송하면, UI 매니저가 화면에 그림을 그립니다.

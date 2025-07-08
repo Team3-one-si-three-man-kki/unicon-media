@@ -458,6 +458,7 @@
       this.closureFrames = 0;
       this.absenceCounter = 0;
       this.ABSENCE_CONSECUTIVE_FRAMES = 15; // 필요에 따라 조정
+      this.analysisIntervalId = null; // ✅ AI 분석 루프의 ID를 저장할 변수
 
       this.worker.onerror = (error) => {
         console.error("❌ MediaPipe Worker 오류:", error);
@@ -475,20 +476,15 @@
       };
     }
 
-    // ✅ main.js에서 AI 모듈을 시작하기 위해 호출하는 메소드입니다.
-    // 이제 이 메소드는 비어 있어도 되지만, 명시적으로 시작점을 관리하기 위해 남겨둡니다.
-    // 중요한 점은 onmessage 핸들러가 이미 생성자에서 설정되었다는 것입니다.
+    // ✅ AI 분석을 시작하는 메소드
     start() {
-      // console.log(
-      //   "MediaPipeModule.start() called. Waiting for worker to be ready."
-      // );
-      // 실제 시작 로직은 worker가 'ready' 메시지를 보낼 때 트리거됩니다.
-    }
-
-    _startAnalysisLoop() {
+      if (this.analysisIntervalId) {
+        console.log("AI analysis is already running.");
+        return;
+      }
+      console.log("🚀 Starting AI analysis loop.");
       const AI_ANALYSIS_INTERVAL = 200;
-      const analyzeFrame = async () => {
-        // ✅ 비디오 너비/높이가 0이 아니고, 상태가 준비되었을 때만 분석
+      this.analysisIntervalId = setInterval(async () => {
         if (
           this.worker &&
           this.videoElement.readyState >= 2 &&
@@ -505,9 +501,24 @@
             );
           }
         }
-        setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
-      };
-      setTimeout(analyzeFrame, AI_ANALYSIS_INTERVAL);
+      }, AI_ANALYSIS_INTERVAL);
+    }
+
+    // ✅ AI 분석을 중지하는 메소드
+    stop() {
+      if (!this.analysisIntervalId) {
+        console.log("AI analysis is not running.");
+        return;
+      }
+      console.log("🛑 Stopping AI analysis loop.");
+      clearInterval(this.analysisIntervalId);
+      this.analysisIntervalId = null;
+    }
+
+    _startAnalysisLoop() {
+      // 이제 이 함수는 start() 메소드에 의해 관리되므로 비워두거나,
+      // 초기 자동 시작이 필요하다면 로직을 유지할 수 있습니다.
+      // 현재 요구사항에서는 외부에서 제어하므로 비워둡니다.
     }
 
     _handleAnalysisResult(landmarks) {
@@ -725,6 +736,7 @@
       }
     }
 
+    // ✅ 얼굴 메쉬를 그리는 메소드
     drawFaceMesh(landmarks) {
       // 캔버스 크기를 비디오 크기에 맞춥니다.
       this.canvas.width = this.video.videoWidth;
@@ -753,6 +765,12 @@
           this.canvasCtx.stroke();
         }
       }
+    }
+
+    // ✅ 캔버스에 그려진 얼굴 메쉬를 지우는 메소드
+    clearFaceMesh() {
+      this.canvasCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      console.log("🗑️ Cleared face mesh from canvas.");
     }
 
     // 원격 비디오 엘리먼트 생성 등 다른 UI 관련 로직도 여기에 추가...
@@ -850,6 +868,7 @@
     console.log("🚀 Application starting...");
 
     const uiManager = new UIManager();
+    let aiModule = null; // ✅ aiModule을 더 넓은 스코프에서 선언
     const roomClient = new RoomClient(uiManager);
 
     let isAudioEnabled = true;
@@ -888,6 +907,16 @@
         uiManager.cameraOffButton.textContent = isVideoEnabled
           ? "카메라 끄기"
           : "카메라 켜기";
+
+        // ✅ AI 모듈 제어 로직 추가
+        if (aiModule) {
+          if (isVideoEnabled) {
+            aiModule.start(); // 카메라 켜질 때 AI 시작
+          } else {
+            aiModule.stop(); // 카메라 꺼질 때 AI 중지
+            uiManager.clearFaceMesh(); // ✅ 카메라 꺼질 때 메쉬 지우기
+          }
+        }
       };
 
       uiManager.muteButton.onclick = () => {
@@ -928,7 +957,7 @@
 
     {
       const videoElement = document.getElementById("localVideo");
-      const aiModule = new MediaPipeModule(videoElement);
+      aiModule = new MediaPipeModule(videoElement); // ✅ aiModule 초기화
 
       console.log("🤖 AI Module will be initialized.");
 
@@ -940,7 +969,10 @@
           "🤖 AI-DEBUG: localStreamReady event received. Attempting to start AI module."
         );
         console.log("🎧 Event: localStreamReady -> AI Module starting analysis.");
-        aiModule.start();
+        if (aiModule) {
+          // ✅ aiModule이 초기화되었는지 확인 후 시작
+          aiModule.start();
+        }
       });
 
       // 2. AI 모듈이 '랜드마크 업데이트'를 방송하면, UI 매니저가 화면에 그림을 그립니다.
