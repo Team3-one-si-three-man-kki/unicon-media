@@ -1,5 +1,5 @@
 // client/mediapipe-worker.js (Rollup 입력용 최종 버전)
-console.log("✅ Worker script successfully loaded and parsed.");
+console.log("Worker script successfully loaded and parsed.");
 
 // ✅ 클래식 워커 방식에 맞춰 importScripts로 스크립트를 로드합니다.
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
@@ -27,7 +27,7 @@ async function setupFaceLandmarker() {
     self.postMessage({ type: "ready" });
   } catch (error) {
     console.error(
-      "Worker: ❌ setupFaceLandmarker 함수에서 오류 발생:",
+      "Worker:  setupFaceLandmarker 함수에서 오류 발생:",
       error.message,
       error.stack
     );

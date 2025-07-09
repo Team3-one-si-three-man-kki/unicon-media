@@ -5,22 +5,22 @@ import { UIManager } from "./UIManager.js";
 
 // --- 애플리케이션 시작 ---
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("🚀 Application starting...");
+  console.log(" Application starting...");
 
   const uiManager = new UIManager();
-  let aiModule = null; // ✅ aiModule을 더 넓은 스코프에서 선언
+  let aiModule = null; // aiModule을 더 넓은 스코프에서 선언
   const roomClient = new RoomClient(uiManager);
 
   let isAudioEnabled = true;
   let isVideoEnabled = true;
   let isScreenSharing = false;
 
-  // ✅ 관리자 여부를 받아서 화면 공유 버튼 활성화
+  // 관리자 여부를 받아서 화면 공유 버튼 활성화
   roomClient.on("adminStatus", (isAdmin) => {
     uiManager.setAdminControls(isAdmin);
   });
 
-  // ✅ 화면 공유 버튼 클릭 이벤트 핸들러
+  // 화면 공유 버튼 클릭 이벤트 핸들러
   uiManager.screenShareButton.onclick = () => {
     if (isScreenSharing) {
       roomClient.stopScreenShare();
@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // ✅ 화면 공유 상태가 변경되면 UI 업데이트
+  // 화면 공유 상태가 변경되면 UI 업데이트
   roomClient.on("screenShareState", ({ isSharing }) => {
     isScreenSharing = isSharing;
     uiManager.screenShareButton.textContent = isSharing
@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
       : "화면 공유";
   });
 
-  // ✅ [핵심 추가] RoomClient가 컨트롤 준비 완료를 방송하면, UIManager가 버튼을 활성화합니다.
+  // [핵심 추가] RoomClient가 컨트롤 준비 완료를 방송하면, UIManager가 버튼을 활성화합니다.
   roomClient.on("controlsReady", () => {
     uiManager.enableControls();
 
@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ? "카메라 끄기"
         : "카메라 켜기";
 
-      // ✅ AI 모듈 제어 로직 추가
+      // AI 모듈 제어 로직 추가
       if (aiModule) {
         if (isVideoEnabled) {
           aiModule.start(); // 카메라 켜질 때 AI 시작
@@ -67,9 +67,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   });
 
-  // ✅ RoomClient가 방송하는 이벤트를 구독하여 UIManager에 작업을 지시합니다.
+  // RoomClient가 방송하는 이벤트를 구독하여 UIManager에 작업을 지시합니다.
   roomClient.on("new-consumer", (consumer) => {
-    console.log("🎧 Event: new-consumer -> UI Manager adding remote track.");
+    console.log(" Event: new-consumer -> UI Manager adding remote track.");
     // consumer에 포함된 appData를 함께 전달
     uiManager.addRemoteTrack(
       consumer.track,
@@ -79,13 +79,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   roomClient.on("producer-closed", (producerId) => {
-    console.log(
-      "🎧 Event: producer-closed -> UI Manager removing remote track."
-    );
+    console.log(" Event: producer-closed -> UI Manager removing remote track.");
     uiManager.removeRemoteTrack(producerId);
   });
 
-  // ✅ 로컬 화면 공유 시작/중지 이벤트 처리
+  // 로컬 화면 공유 시작/중지 이벤트 처리
   roomClient.on("local-screen-share-started", (track) => {
     uiManager.addLocalScreenShare(track);
   });
@@ -94,25 +92,25 @@ document.addEventListener("DOMContentLoaded", () => {
     uiManager.removeLocalScreenShare();
   });
 
-  // ❗️핵심: 사용자가 '졸음 감지 모듈'을 구매했는지 여부 (나중에는 서버에서 받아올 값)
+  //핵심: 사용자가 '졸음 감지 모듈'을 구매했는지 여부 (나중에는 서버에서 받아올 값)
   const userHasAiModule = true;
 
   if (userHasAiModule) {
     const videoElement = document.getElementById("localVideo");
-    aiModule = new MediaPipeModule(videoElement); // ✅ aiModule 초기화
+    aiModule = new MediaPipeModule(videoElement); // aiModule 초기화
 
-    console.log("🤖 AI Module will be initialized.");
+    console.log("AI Module will be initialized.");
 
     // --- 지휘자(main.js)가 각 모듈의 이벤트를 연결(구독)해줍니다. ---
 
     // 1. RoomClient가 '로컬 스트림 준비 완료'를 방송하면, AI 모듈이 분석을 시작합니다.
     roomClient.on("localStreamReady", () => {
       console.log(
-        "🤖 AI-DEBUG: localStreamReady event received. Attempting to start AI module."
+        "AI-DEBUG: localStreamReady event received. Attempting to start AI module."
       );
-      console.log("🎧 Event: localStreamReady -> AI Module starting analysis.");
+      console.log("Event: localStreamReady -> AI Module starting analysis.");
       if (aiModule) {
-        // ✅ aiModule이 초기화되었는지 확인 후 시작
+        //  aiModule이 초기화되었는지 확인 후 시작
         aiModule.start();
       }
     });
@@ -124,17 +122,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 3. AI 모듈이 '상태 변경'을 방송하면, RoomClient가 서버로 데이터를 전송합니다.
     aiModule.on("drowsinessUpdate", (data) => {
-      console.log("🎧 Event: drowsinessUpdate -> Sending status to server.");
+      console.log("Event: drowsinessUpdate -> Sending status to server.");
       roomClient.sendPeerStatus(data);
     });
     aiModule.on("absenceUpdate", (data) => {
-      console.log("🎧 Event: absenceUpdate -> Sending status to server.");
+      console.log(" Event: absenceUpdate -> Sending status to server.");
       roomClient.sendPeerStatus(data);
     });
 
     // 4. AI 모듈에서 에러가 발생하면 콘솔에 출력합니다.
     aiModule.on("error", (error) => {
-      console.error("🔥 AI Module Error:", error);
+      console.error(" AI Module Error:", error);
     });
   }
 

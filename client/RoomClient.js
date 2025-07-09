@@ -13,19 +13,19 @@ export class RoomClient extends EventEmitter {
     this.localStream = null;
     this.producers = new Map();
     this.consumers = new Map();
-    this.producerIdToConsumer = new Map(); // ✅ producerId -> consumer 맵
+    this.producerIdToConsumer = new Map(); //   producerId -> consumer 맵
     this.actionCallbackMap = new Map();
     this.pendingConsumeList = [];
-    this.isAdmin = false; // ✅ 관리자 여부
-    this.screenProducer = null; // ✅ 화면 공유 프로듀서
+    this.isAdmin = false; //    관리자 여부
+    this.screenProducer = null; //    화면 공유 프로듀서
   }
 
   join(roomId) {
-    // ✅ roomId를 인자로 받습니다.
+    //    roomId를 인자로 받습니다.
     if (!roomId) {
       throw new Error("roomId is required to join a room");
     }
-    // ✅ WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
+    //    WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
     // IMPORTANT: Replace '13.125.229.206' with your AWS EC2 instance's PUBLIC IP address or domain name.
     // 개발 환경에서 self-signed certificate를 사용하는 경우, 브라우저에서 경고를 무시해야 할 수 있습니다.
     // 프로덕션 환경에서는 유효한 SSL/TLS 인증서를 사용해야 합니다.
@@ -33,18 +33,18 @@ export class RoomClient extends EventEmitter {
       `wss://${process.env.WEBSOCKET_URL}/?roomId=${roomId}`
     );
     this.ws.onopen = () => {
-      console.log("✅ WebSocket connected");
+      console.log("   WebSocket connected");
       try {
         this.device = new window.mediasoupClient.Device();
         this.ws.send(JSON.stringify({ action: "getRtpCapabilities" }));
       } catch (err) {
-        console.error("❌ Device creation failed:", err);
+        console.error("    Device creation failed:", err);
       }
     };
 
     this.ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
-      console.log("📩 Received:", msg);
+      console.log("    Received:", msg);
 
       const cb = this.actionCallbackMap.get(msg.action);
       if (cb) {
@@ -101,10 +101,10 @@ export class RoomClient extends EventEmitter {
   async _handleRtpCapabilities(data) {
     try {
       await this.device.load({ routerRtpCapabilities: data });
-      console.log("✅ Device loaded successfully");
+      console.log("   Device loaded successfully");
       this.ws.send(JSON.stringify({ action: "createTransport" }));
     } catch (err) {
-      console.error("❌ Failed to load device capabilities:", err);
+      console.error("    Failed to load device capabilities:", err);
     }
   }
 
@@ -136,7 +136,7 @@ export class RoomClient extends EventEmitter {
             appData,
           });
           console.log(
-            `✅ ${kind} production started with server id: ${producer.id}`
+            `   ${kind} production started with server id: ${producer.id}`
           );
           this.producers.set(producer.id, producer); // 실제 producer 객체 저장
           callback({ id: producer.id });
@@ -160,7 +160,7 @@ export class RoomClient extends EventEmitter {
 
       videoElement.oncanplay = () => {
         videoElement.oncanplay = null;
-        console.log("✅ Video element is ready to play.");
+        console.log("   Video element is ready to play.");
         this.emit("localStreamReady", videoElement); // AI 모듈이 videoElement를 참조할 수 있도록 전달
 
         (async () => {
@@ -181,13 +181,13 @@ export class RoomClient extends EventEmitter {
             this.producers.set(audioProducer.id, audioProducer); // 프로듀서 객체 저장
           }
           this.ws.send(JSON.stringify({ action: "deviceReady" }));
-          // ✅ [핵심 추가] 모든 produce가 끝난 후, 컨트롤 준비 완료 이벤트를 방송합니다.
-          console.log("✅ All producers created. Controls are now ready.");
+          //    [핵심 추가] 모든 produce가 끝난 후, 컨트롤 준비 완료 이벤트를 방송합니다.
+          console.log("   All producers created. Controls are now ready.");
           this.emit("controlsReady");
         })();
       };
     } catch (err) {
-      console.error("❌ CRITICAL: Failed to get user media.", err);
+      console.error("    CRITICAL: Failed to get user media.", err);
       alert(`카메라/마이크를 가져올 수 없습니다: ${err.name}`);
     }
   }
@@ -204,11 +204,11 @@ export class RoomClient extends EventEmitter {
       this._waitForAction("consumerTransportConnected", callback);
     });
 
-    // ✅ recvTransport가 준비되었으므로, 대기 중인 모든 consumer를 처리합니다.
+    //    recvTransport가 준비되었으므로, 대기 중인 모든 consumer를 처리합니다.
     const pendingConsumes = [...this.pendingConsumeList];
     this.pendingConsumeList = [];
     console.log(
-      `✅ RecvTransport ready. Processing ${pendingConsumes.length} pending consumers.`
+      `   RecvTransport ready. Processing ${pendingConsumes.length} pending consumers.`
     );
     for (const consumeData of pendingConsumes) {
       await this._consume(consumeData);
@@ -221,7 +221,7 @@ export class RoomClient extends EventEmitter {
       this.pendingConsumeList.push(producer);
     }
 
-    // ✅ recvTransport가 아직 없으면 생성을 요청하고,
+    //    recvTransport가 아직 없으면 생성을 요청하고,
     //    이미 있다면 바로 대기열을 처리하여 타이밍 문제를 해결합니다.
     if (!this.recvTransport) {
       this.ws.send(JSON.stringify({ action: "createConsumerTransport" }));
@@ -235,11 +235,11 @@ export class RoomClient extends EventEmitter {
   }
 
   async _handleNewProducerAvailable(producerInfo) {
-    console.log("🆕 A new producer is available.", producerInfo);
+    console.log("     A new producer is available.", producerInfo);
     const { producerId, kind, appData } = producerInfo;
     const consumeData = { producerId, kind, appData }; // appData도 전달
 
-    // ✅ recvTransport가 없으면 대기열에 추가하고, 있으면 바로 consume을 시도합니다.
+    //    recvTransport가 없으면 대기열에 추가하고, 있으면 바로 consume을 시도합니다.
     if (!this.recvTransport) {
       this.pendingConsumeList.push(consumeData);
     } else {
@@ -248,7 +248,7 @@ export class RoomClient extends EventEmitter {
   }
 
   async _consume({ producerId, kind, appData }) {
-    // ✅ 중복 consumer 생성을 방지하는 가드
+    //    중복 consumer 생성을 방지하는 가드
     if (this.producerIdToConsumer.has(producerId)) {
       console.warn(
         `Consumer for producer ${producerId} already exists. Skipping.`
@@ -256,7 +256,7 @@ export class RoomClient extends EventEmitter {
       return;
     }
 
-    console.log(`📡 Requesting to consume producer ${producerId}`);
+    console.log(`     Requesting to consume producer ${producerId}`);
     if (!this.recvTransport) {
       console.warn("recvTransport is not ready, queuing consume request");
       this.pendingConsumeList.push({ producerId, kind });
@@ -277,13 +277,13 @@ export class RoomClient extends EventEmitter {
         appData: { ...appData }, // 서버에서 받은 appData를 consumer에 저장
       });
       this.consumers.set(consumer.id, consumer);
-      this.producerIdToConsumer.set(producerId, consumer); // ✅ 새 맵에 추가
+      this.producerIdToConsumer.set(producerId, consumer); //    새 맵에 추가
 
       // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
       this.emit("new-consumer", consumer);
 
       // 4. 생성된 consumer를 즉시 resume하도록 서버에 요청합니다.
-      console.log(`🚀 Resuming consumer ${consumer.id}`);
+      console.log(` Resuming consumer ${consumer.id}`);
       this.ws.send(
         JSON.stringify({
           action: "resumeConsumer",
@@ -291,12 +291,12 @@ export class RoomClient extends EventEmitter {
         })
       );
     } catch (error) {
-      console.error(`❌ Failed to create consumer for ${producerId}:`, error);
+      console.error(`    Failed to create consumer for ${producerId}:`, error);
     }
   }
 
   _handleProducerClosed({ producerId }) {
-    console.log(`🚫 Producer ${producerId} closed.`);
+    console.log(` Producer ${producerId} closed.`);
     const consumer = this.producerIdToConsumer.get(producerId);
     if (consumer) {
       consumer.close();
@@ -321,7 +321,7 @@ export class RoomClient extends EventEmitter {
       this.ws.send(JSON.stringify({ action, data }));
     });
   }
-  // ✅ 오디오 트랙을 끄거나 켭니다.
+  //    오디오 트랙을 끄거나 켭니다.
   async setAudioEnabled(enabled) {
     const audioProducer = this._findProducerByKind("audio");
     if (!audioProducer) return;
@@ -335,7 +335,7 @@ export class RoomClient extends EventEmitter {
     // this.sendPeerStatus({ isMuted: !enabled });
   }
 
-  // ✅ 비디오 트랙을 끄거나 켭니다.
+  //    비디오 트랙을 끄거나 켭니다.
   async setVideoEnabled(enabled) {
     const videoProducer = this._findProducerByKind("video");
     if (!videoProducer) return;
@@ -356,7 +356,7 @@ export class RoomClient extends EventEmitter {
     return null;
   }
 
-  // ✅ 화면 공유 시작
+  //    화면 공유 시작
   async startScreenShare() {
     if (this.screenProducer) {
       console.warn("Screen sharing is already active.");
@@ -382,20 +382,20 @@ export class RoomClient extends EventEmitter {
 
       this.producers.set(this.screenProducer.id, this.screenProducer);
       this.emit("screenShareState", { isSharing: true });
-      this.emit("local-screen-share-started", this.screenProducer.track); // ✅ 로컬 UI를 위한 이벤트
+      this.emit("local-screen-share-started", this.screenProducer.track); //    로컬 UI를 위한 이벤트
     } catch (err) {
-      console.error("❌ Failed to start screen sharing:", err);
+      console.error("    Failed to start screen sharing:", err);
     }
   }
 
-  // ✅ 화면 공유 중지
+  //    화면 공유 중지
   async stopScreenShare() {
     if (!this.screenProducer) {
       console.warn("No active screen share to stop.");
       return;
     }
 
-    console.log("🚀 Requesting to stop screen share.");
+    console.log(" Requesting to stop screen share.");
     // 서버에 화면 공유 중지를 명시적으로 요청
     this.ws.send(
       JSON.stringify({
@@ -410,6 +410,6 @@ export class RoomClient extends EventEmitter {
     this.producers.delete(producerId);
     this.screenProducer = null;
     this.emit("screenShareState", { isSharing: false });
-    this.emit("local-screen-share-stopped"); // ✅ 로컬 UI 정리를 위한 이벤트
+    this.emit("local-screen-share-stopped"); //    로컬 UI 정리를 위한 이벤트
   }
 }

@@ -124,14 +124,14 @@ export class UIManager {
 
     if (!this.remoteMediaContainer) {
       console.error(
-        "❌ UIManager: #remoteMediaContainer 요소를 찾을 수 없습니다!"
+        "    UIManager: #remoteMediaContainer 요소를 찾을 수 없습니다!"
       );
     } else {
-      console.log("✅ UIManager: #remoteMediaContainer 요소 초기화 완료.");
+      console.log("     UIManager: #remoteMediaContainer 요소 초기화 완료.");
     }
   }
 
-  // ✅ [핵심 추가] 모든 컨트롤 버튼을 활성화하는 메소드
+  //      [핵심 추가] 모든 컨트롤 버튼을 활성화하는 메소드
   enableControls() {
     console.log("🛠️ Enabling media controls...");
     this.muteButton.disabled = false;
@@ -139,13 +139,13 @@ export class UIManager {
     // screenShareButton은 관리자만 활성화되므로 여기서는 처리하지 않음
   }
 
-  // ✅ 관리자 여부에 따라 화면 공유 버튼 활성화
+  //      관리자 여부에 따라 화면 공유 버튼 활성화
   setAdminControls(isAdmin) {
     console.log(`👑 Admin status: ${isAdmin}. Setting controls.`);
     this.screenShareButton.disabled = !isAdmin;
   }
 
-  // ✅ 화면 공유 상태에 따라 레이아웃을 변경하는 메소드
+  //      화면 공유 상태에 따라 레이아웃을 변경하는 메소드
   updateLayoutForScreenShare(isSharing) {
     const localMediaContainer = document.getElementById("localMediaContainer");
     if (isSharing) {
@@ -193,7 +193,7 @@ export class UIManager {
   addRemoteTrack(track, producerId, appData) {
     if (!this.remoteMediaContainer) {
       console.error(
-        "❌ UIManager.addRemoteTrack: remoteMediaContainer가 유효하지 않습니다. 원격 트랙을 추가할 수 없습니다."
+        "    UIManager.addRemoteTrack: remoteMediaContainer가 유효하지 않습니다. 원격 트랙을 추가할 수 없습니다."
       );
       return;
     }
@@ -213,7 +213,7 @@ export class UIManager {
       screenShareWrapper.appendChild(element);
       // 화면 공유는 보통 컨테이너의 맨 앞에 오도록 prepend 사용
       this.remoteMediaContainer.prepend(screenShareWrapper);
-      console.log(`🖥️ Added screen share for producer ${producerId}`);
+      console.log(`     Added screen share for producer ${producerId}`);
     } else {
       const element = document.createElement(track.kind);
       element.id = `remote-${producerId}`;
@@ -226,7 +226,7 @@ export class UIManager {
 
       this.remoteMediaContainer.appendChild(element);
       console.log(
-        `📺 Added remote ${track.kind} element for producer ${producerId}`
+        `     Added remote ${track.kind} element for producer ${producerId}`
       );
     }
   }
@@ -238,17 +238,17 @@ export class UIManager {
 
     if (remoteVideo) {
       remoteVideo.remove();
-      console.log(`🗑️ Removed video element for producer ${producerId}`);
+      console.log(`     Removed video element for producer ${producerId}`);
     }
     if (screenShare) {
       screenShare.remove();
-      console.log(`🗑️ Removed screen share for producer ${producerId}`);
+      console.log(`     Removed screen share for producer ${producerId}`);
       // 화면 공유가 종료되었으므로 레이아웃 복원
       this.updateLayoutForScreenShare(false);
     }
   }
 
-  // ✅ 관리자 자신의 화면 공유를 UI에 추가하는 메소드
+  //      관리자 자신의 화면 공유를 UI에 추가하는 메소드
   addLocalScreenShare(track) {
     this.updateLayoutForScreenShare(true);
     const screenShareWrapper = document.createElement("div");
@@ -263,15 +263,15 @@ export class UIManager {
 
     screenShareWrapper.appendChild(element);
     this.remoteMediaContainer.prepend(screenShareWrapper);
-    console.log("🖥️ Added local screen share to UI.");
+    console.log("     Added local screen share to UI.");
   }
 
-  // ✅ 로컬 화면 공유를 UI에서 제거하는 메소드
+  //      로컬 화면 공유를 UI에서 제거하는 메소드
   removeLocalScreenShare() {
     const element = document.getElementById("local-screen-share-wrapper");
     if (element) {
       element.remove();
-      console.log("🗑️ Removed local screen share from UI.");
+      console.log("     Removed local screen share from UI.");
       this.updateLayoutForScreenShare(false); // 레이아웃 복원
     }
   }
