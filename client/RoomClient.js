@@ -26,12 +26,12 @@ export class RoomClient extends EventEmitter {
       throw new Error("roomId is required to join a room");
     }
     //    WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
-    // IMPORTANT: Replace '13.125.229.206' with your AWS EC2 instance's PUBLIC IP address or domain name.
-    // 개발 환경에서 self-signed certificate를 사용하는 경우, 브라우저에서 경고를 무시해야 할 수 있습니다.
-    // 프로덕션 환경에서는 유효한 SSL/TLS 인증서를 사용해야 합니다.
-    this.ws = new WebSocket(
-      `wss://${process.env.WEBSOCKET_URL}/?roomId=${roomId}`
-    );
+    // WebSocket 접속 주소를 현재 페이지의 호스트 주소(IP 또는 도메인)를 동적으로 사용하도록 수정합니다.
+    // 이렇게 하면 서버 주소가 변경되어도 클라이언트 코드를 수정할 필요가 없습니다.
+    // 포트는 3000으로 고정합니다.
+    const wsUrl = `wss://${process.env.WEBSOCKET_URL}/?roomId=${roomId}`;
+    console.log(`Connecting to WebSocket: ${wsUrl}`);
+    this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
       console.log("   WebSocket connected");
       try {

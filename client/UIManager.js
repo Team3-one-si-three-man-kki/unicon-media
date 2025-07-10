@@ -113,22 +113,69 @@ const FACE_LANDMARKS_CONNECTORS = [
 
 export class UIManager {
   constructor() {
-    this.canvas = document.getElementById("localCanvas");
+    // 1. 메인 컨테이너 생성 및 body에 추가
+    this.appRootContainer = document.createElement("div");
+    this.appRootContainer.className = "sub_contents"; // 기존 class 유지
+    this.appRootContainer.style.cssText =
+      "width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;";
+    document.body.appendChild(this.appRootContainer);
+
+    // 2. localMediaContainer 생성 및 appRootContainer에 추가
+    this.localMediaContainer = document.createElement("div");
+    this.localMediaContainer.id = "localMediaContainer";
+    this.localMediaContainer.style.cssText =
+      "position: relative; width: 300px; height: 225px; border: 1px solid #ccc; border-radius: 4px; background-color: #000; margin-bottom: 10px;";
+    this.appRootContainer.appendChild(this.localMediaContainer);
+
+    // 3. video 요소 생성 및 localMediaContainer에 추가
+    this.video = document.createElement("video");
+    this.video.id = "localVideo";
+    this.video.controls = true;
+    this.video.autoplay = true; // 자동 재생 추가
+    this.video.playsInline = true; // iOS에서 인라인 재생
+    this.video.style.cssText = "height: 100%; object-fit: cover;";
+    this.localMediaContainer.appendChild(this.video);
+
+    // 4. canvas 요소 생성 및 localMediaContainer에 추가
+    this.canvas = document.createElement("canvas");
+    this.canvas.id = "localCanvas";
+    this.canvas.style.cssText =
+      "position: absolute; top: 0; left: 0; width: 100%; height: 100%;";
+    this.localMediaContainer.appendChild(this.canvas);
     this.canvasCtx = this.canvas.getContext("2d");
-    this.video = document.getElementById("localVideo");
-    this.remoteMediaContainer = document.getElementById("remoteMediaContainer");
 
-    this.muteButton = document.getElementById("muteButton");
-    this.cameraOffButton = document.getElementById("cameraOffButton");
-    this.screenShareButton = document.getElementById("screenShareButton");
+    // 5. controls 그룹 생성 및 appRootContainer에 추가
+    this.controlsGroup = document.createElement("div");
+    this.controlsGroup.className = "controls"; // 기존 class 유지
+    this.appRootContainer.appendChild(this.controlsGroup);
 
-    if (!this.remoteMediaContainer) {
-      console.error(
-        "    UIManager: #remoteMediaContainer 요소를 찾을 수 없습니다!"
-      );
-    } else {
-      console.log("     UIManager: #remoteMediaContainer 요소 초기화 완료.");
-    }
+    // 6. muteButton 생성 및 controlsGroup에 추가
+    this.muteButton = document.createElement("button"); // xf:trigger 대신 button 사용
+    this.muteButton.id = "muteButton";
+    this.muteButton.textContent = "음소거";
+    this.muteButton.disabled = true;
+    this.controlsGroup.appendChild(this.muteButton);
+
+    // 7. cameraOffButton 생성 및 controlsGroup에 추가
+    this.cameraOffButton = document.createElement("button"); // xf:trigger 대신 button 사용
+    this.cameraOffButton.id = "cameraOffButton";
+    this.cameraOffButton.textContent = "카메라 끄기";
+    this.cameraOffButton.disabled = true;
+    this.controlsGroup.appendChild(this.cameraOffButton);
+
+    // 8. screenShareButton 생성 및 controlsGroup에 추가
+    this.screenShareButton = document.createElement("button"); // xf:trigger 대신 button 사용
+    this.screenShareButton.id = "screenShareButton";
+    this.screenShareButton.textContent = "화면공유";
+    this.screenShareButton.disabled = true; // 초기에는 비활성화
+    this.controlsGroup.appendChild(this.screenShareButton);
+
+    // 9. remoteMediaContainer 생성 및 appRootContainer에 추가
+    this.remoteMediaContainer = document.createElement("div");
+    this.remoteMediaContainer.id = "remoteMediaContainer";
+    this.appRootContainer.appendChild(this.remoteMediaContainer);
+
+    console.log("UIManager: All UI elements created and appended to DOM.");
   }
 
   //      [핵심 추가] 모든 컨트롤 버튼을 활성화하는 메소드
@@ -147,14 +194,14 @@ export class UIManager {
 
   //      화면 공유 상태에 따라 레이아웃을 변경하는 메소드
   updateLayoutForScreenShare(isSharing) {
-    const localMediaContainer = document.getElementById("localMediaContainer");
+    // localMediaContainer는 이미 this.localMediaContainer로 참조됨
     if (isSharing) {
       // 화면 공유 시, 로컬 비디오는 작게 만들고, 원격 컨테이너는 화면 공유에 집중
-      localMediaContainer.classList.add("small");
+      this.localMediaContainer.classList.add("small");
       this.remoteMediaContainer.classList.add("screen-sharing-active");
     } else {
       // 화면 공유 종료 시, 원래대로 복원
-      localMediaContainer.classList.remove("small");
+      this.localMediaContainer.classList.remove("small");
       this.remoteMediaContainer.classList.remove("screen-sharing-active");
     }
   }
