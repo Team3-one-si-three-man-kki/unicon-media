@@ -131,10 +131,18 @@ export class MediaPipeModule extends EventEmitter {
 
     // ✅ 3. 상태가 '변경'되었을 때만 이벤트를 방송합니다.
     if (previousIsPresent !== this.isPresent) {
-      this.emit("absenceUpdate", { isPresent: this.isPresent });
+      if (!this.isPresent) {
+        this.emit("absenceStarted", { isPresent: this.isPresent });
+      } else {
+        this.emit("absenceEnded", { isPresent: this.isPresent });
+      }
     }
     if (previousIsDrowsy !== this.isDrowsy) {
-      this.emit("drowsinessUpdate", { isDrowsy: this.isDrowsy });
+      if (this.isDrowsy) {
+        this.emit("drowsinessDetected", { isDrowsy: this.isDrowsy });
+      } else {
+        this.emit("drowsinessResolved", { isDrowsy: this.isDrowsy });
+      }
     }
   }
 }
