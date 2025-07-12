@@ -131,6 +131,7 @@ export class UIManager {
     this.video = document.createElement("video");
     this.video.id = "localVideo";
     this.video.controls = true;
+    this.video.muted = true; // 로컬 비디오는 음소거
     this.video.autoplay = true; // 자동 재생 추가
     this.video.playsInline = true; // iOS에서 인라인 재생
     this.video.style.cssText = "height: 100%; object-fit: cover;";
