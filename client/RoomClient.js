@@ -83,6 +83,22 @@ export class RoomClient extends EventEmitter {
         case "producerClosed":
           this._handleProducerClosed(msg);
           break;
+        // ✅ [추가] 다른 참여자의 프로듀서 상태 변경 알림을 처리
+        case "producerStateChanged": {
+          const { producerId, kind, state } = msg.data;
+          if (state === "pause") {
+            if (kind === "video")
+              this.emit("remote-producer-pause", { producerId });
+            // 필요하다면 오디오 pause 처리도 추가
+            // if (kind === 'audio') this.emit('remote-audio-pause', { producerId });
+          } else if (state === "resume") {
+            if (kind === "video")
+              this.emit("remote-producer-resume", { producerId });
+            // 필요하다면 오디오 resume 처리도 추가
+            // if (kind === 'audio') this.emit('remote-audio-resume', { producerId });
+          }
+          break;
+        }
       }
     };
   }
@@ -336,7 +352,19 @@ export class RoomClient extends EventEmitter {
       await audioProducer.pause();
     }
     // 필요하다면 서버에 음소거 상태를 알리는 시그널링을 보낼 수 있습니다.
-    // this.sendPeerStatus({ isMuted: !enabled });
+    // ✅ [추가] 서버에 프로듀서 상태 변경을 알립니다.
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          action: "changeProducerState",
+          data: {
+            producerId: audioProducer.id,
+            kind: "audio",
+            action: enabled ? "resume" : "pause",
+          },
+        })
+      );
+    }
   }
 
   //    비디오 트랙을 끄거나 켭니다.
@@ -348,6 +376,18 @@ export class RoomClient extends EventEmitter {
       await videoProducer.resume();
     } else {
       await videoProducer.pause();
+    }
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(
+        JSON.stringify({
+          action: "changeProducerState",
+          data: {
+            producerId: videoProducer.id,
+            kind: "video",
+            action: enabled ? "resume" : "pause",
+          },
+        })
+      );
     }
   }
   _findProducerByKind(kind) {
