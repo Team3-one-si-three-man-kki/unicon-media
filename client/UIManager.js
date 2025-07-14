@@ -166,14 +166,27 @@ export class UIManager {
     this.whiteboardButton.style.display = "none";
     this.controlsGroup.appendChild(this.whiteboardButton);
 
-    // 화면 공유와 캔버스가 공용으로 사용할 컨테이너
-    this.remoteMediaContainer = document.createElement("div");
-    this.remoteMediaContainer.id = "remoteMediaContainer";
-    this.remoteMediaContainer.style.cssText =
-      "position: relative; width: 80%; flex-grow: 1; background-color: #202020;";
-    this.appRootContainer.appendChild(this.remoteMediaContainer);
+    // --- ✅ [핵심 수정] 새로운 원격 미디어 섹션 ---
+    this.remoteSection = document.createElement("div");
+    this.remoteSection.id = "remoteSection";
+    this.appRootContainer.appendChild(this.remoteSection);
 
-    console.log("UIManager: All UI elements created and appended to DOM.");
+    this.mainStageContainer = document.createElement("div");
+    this.mainStageContainer.id = "mainStageContainer";
+    this.remoteSection.appendChild(this.mainStageContainer);
+
+    this.sidebarContainer = document.createElement("div");
+    this.sidebarContainer.id = "sidebarContainer";
+    this.remoteSection.appendChild(this.sidebarContainer);
+
+    console.log("UIManager: Stage and Sidebar UI created.");
+  }
+
+  getMainStageContainer() {
+    return this.mainStageContainer;
+  }
+  getSidebarContainer() {
+    return this.sidebarContainer;
   }
 
   // main.js가 공용 컨테이너에 접근할 수 있도록 getter 제공
