@@ -19,4 +19,9 @@ export class EventEmitter {
       this.events[eventName].forEach((listener) => listener(...args));
     }
   }
+
+  // 모든 리스너 제거
+  removeAllListeners() {
+    this.events = {};
+  }
 }

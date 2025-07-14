@@ -4,11 +4,11 @@ import { EventEmitter } from "../utils/EventEmitter.js";
 
 // ✅ EventEmitter를 상속받습니다.
 export class MediaPipeModule extends EventEmitter {
-  constructor(videoElement) {
+  constructor(videoElement, url) {
     super();
 
     this.videoElement = videoElement;
-    this.worker = new Worker("./dist/mediapipe-worker.bundle.js");
+    this.worker = new Worker(url);
 
     // ✅ 1. 모든 상태와 상수를 클래스의 속성(this)으로 변경합니다.
     this.isDrowsy = false;

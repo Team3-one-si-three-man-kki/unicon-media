@@ -34,6 +34,10 @@ export class RoomClient extends EventEmitter {
     this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
       console.log("   WebSocket connected");
+      this.emit("connected", this.ws); // main.js에 연결 성공을 알림
+
+      // CanvasModule 초기화 로직을 main.js로 이동시켰으므로 이 코드는 제거합니다.
+
       try {
         this.device = new window.mediasoupClient.Device();
         this.ws.send(JSON.stringify({ action: "getRtpCapabilities" }));
