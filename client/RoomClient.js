@@ -90,12 +90,14 @@ export class RoomClient extends EventEmitter {
             if (kind === "video")
               this.emit("remote-producer-pause", { producerId });
             // 필요하다면 오디오 pause 처리도 추가
-            // if (kind === 'audio') this.emit('remote-audio-pause', { producerId });
+            if (kind === "audio")
+              this.emit("remote-audio-pause", { producerId });
           } else if (state === "resume") {
             if (kind === "video")
               this.emit("remote-producer-resume", { producerId });
             // 필요하다면 오디오 resume 처리도 추가
-            // if (kind === 'audio') this.emit('remote-audio-resume', { producerId });
+            if (kind === "audio")
+              this.emit("remote-audio-resume", { producerId });
           }
           break;
         }
