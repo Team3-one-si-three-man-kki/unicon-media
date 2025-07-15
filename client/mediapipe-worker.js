@@ -18,8 +18,8 @@ async function setupFaceLandmarker() {
         delegate: "GPU",
       },
       runningMode: "VIDEO",
-      outputFaceBlendshapes: true,
-      outputFacialTransformationMatrixes: true,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: false,
       numFaces: 1,
     });
 
