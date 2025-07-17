@@ -75,6 +75,7 @@ export class Room {
         data: {
           isAdmin: peer.peerId === this.adminPeerId,
           adminPeerId: this.adminPeerId,
+          peerId: peer.peerId, // Add the peer's own ID
         },
       })
     );
@@ -103,6 +104,14 @@ export class Room {
   broadcast(senderId, message) {
     for (const peer of this.peers.values()) {
       if (peer.peerId !== senderId && peer.ws.readyState === WebSocket.OPEN) {
+        peer.ws.send(JSON.stringify(message));
+      }
+    }
+  }
+
+  broadcastToAll(message) {
+    for (const peer of this.peers.values()) {
+      if (peer.ws.readyState === WebSocket.OPEN) {
         peer.ws.send(JSON.stringify(message));
       }
     }
@@ -301,9 +310,25 @@ export class Room {
 
       case "updatePeerStatus": {
         peer.status = data; // isPresent, isDrowsy 상태 저장
-        // 다른 사람에게 상태를 알릴 필요가 있다면 여기서 broadcast
-        // this.broadcast(peer.peerId, { action: 'peerStatusUpdated', peerId: peer.peerId, status: data });
-        console.log("누군가 졸거나 자리비움", peer.peerId, data);
+
+        // 관리자(admin)에게만 상태 변경 알림
+        const adminPeer = this.peers.get(this.adminPeerId);
+        if (adminPeer && adminPeer.ws.readyState === WebSocket.OPEN) {
+          adminPeer.ws.send(
+            JSON.stringify({
+              action: "peerStatusUpdated",
+              data: {
+                peerId: peer.peerId,
+                status: data,
+              },
+            })
+          );
+        }
+
+        console.log(
+          `[Room ${this.id}] Peer ${peer.peerId} status updated:`,
+          data
+        );
         break;
       }
 
@@ -348,6 +373,15 @@ export class Room {
             })
           );
         }
+        break;
+      }
+
+      case "canvas": {
+        // 👇 sender 포함 전체에게 canvas 메시지를 보냄
+        this.broadcastToAll({
+          action: "canvas",
+          data: data,
+        });
         break;
       }
     }
