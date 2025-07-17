@@ -213,6 +213,7 @@ export class Room {
           appData: {
             ...appData, // 화면 공유 정보 등
             peerId: peer.peerId, // peerId는 서버에서 확실하게 추가
+            perrName: peer.name
           },
         });
         peer.producers.set(producer.id, producer);
