@@ -114,7 +114,16 @@ export class CanvasModule extends EventEmitter {
     this.bgPicker = this.container.querySelector("#canvas-bgPicker");
     this.bgToggle = this.container.querySelector("#canvas-bgToggle");
   }
-
+  clear() {
+    this.canvas.clear();
+    if (this.bgOn) {
+      this.canvas.setBackgroundColor(
+        this.bgPicker.value,
+        this.canvas.renderAll.bind(this.canvas)
+      );
+    }
+    this.signal({ type: "clear" });
+  }
   _initFabricCanvas() {
     this.canvas = new fabric.Canvas(this.canvasEl, {
       isDrawingMode: false,
