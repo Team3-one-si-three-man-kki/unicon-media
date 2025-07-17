@@ -116,28 +116,6 @@ export class UIManager {
       "width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center;";
     document.body.appendChild(this.appRootContainer);
 
-    this.localMediaContainer = document.createElement("div");
-    this.localMediaContainer.id = "localMediaContainer";
-    this.localMediaContainer.style.cssText =
-      "position: relative; width: 300px; height: 225px; border: 1px solid #ccc; border-radius: 4px; background-color: #000; margin-bottom: 10px;";
-    this.appRootContainer.appendChild(this.localMediaContainer); // Ensure local media container is added to the DOM
-
-    this.video = document.createElement("video");
-    this.video.id = "localVideo";
-    this.video.controls = true;
-    this.video.muted = true;
-    this.video.autoplay = true;
-    this.video.playsInline = true;
-    this.video.style.cssText = "height: 100%; object-fit: cover;";
-    this.localMediaContainer.appendChild(this.video);
-
-    this.canvas = document.createElement("canvas");
-    this.canvas.id = "localCanvas";
-    this.canvas.style.cssText =
-      "position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"; // AI용 캔버스은 이벤트 방해 안함
-    this.localMediaContainer.appendChild(this.canvas);
-    this.canvasCtx = this.canvas.getContext("2d");
-
     this.controlsGroup = document.createElement("div");
     this.controlsGroup.className = "controls";
     this.appRootContainer.appendChild(this.controlsGroup);
@@ -375,11 +353,11 @@ export class UIManager {
     // 이 로직은 main.js에서 직접 요소를 관리하므로 여기서는 필요 없을 수 있습니다.
     // 하지만 혹시 모를 잔여 요소 정리를 위해 남겨둡니다.
     currentMainChildren.forEach(child => {
-      if (!mainStageElements.includes(child) && !sidebarElements.includes(child)) ;
+      if (!mainStageElements.includes(child) && !sidebarElements.includes(child));
     });
 
     currentSidebarChildren.forEach(child => {
-      if (!mainStageElements.includes(child) && !sidebarElements.includes(child)) ;
+      if (!mainStageElements.includes(child) && !sidebarElements.includes(child));
     });
   }
 
@@ -407,5 +385,12 @@ export class UIManager {
       console.log("Removed local screen share from UI.");
       this.updateLayoutForScreenShare(false); // 레이아웃 복원
     }
+  }
+
+  // ✅ [추가] drawFaceMesh가 참조할 로컬 비디오와 캔버스를 설정하는 함수
+  setLocalMediaElements(videoEl, canvasEl) {
+    this.video = videoEl;
+    this.canvas = canvasEl;
+    this.canvasCtx = canvasEl.getContext("2d");
   }
 }

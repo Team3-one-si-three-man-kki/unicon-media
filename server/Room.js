@@ -193,7 +193,7 @@ export class Room {
       }
       case "connectTransport": {
         await peer.transport.connect({ dtlsParameters: data.dtlsParameters });
-        peer.ws.send(JSON.stringify({ action: "transportConnected" }));
+        peer.ws.send(JSON.stringify({ action: "transportConnected", data: {} }));
         break;
       }
       case "connectConsumerTransport": {
@@ -201,7 +201,7 @@ export class Room {
         await peer.recvTransport.connect({
           dtlsParameters: data.dtlsParameters,
         });
-        peer.ws.send(JSON.stringify({ action: "consumerTransportConnected" }));
+        peer.ws.send(JSON.stringify({ action: "consumerTransportConnected", data: {} }));
         break;
       }
 
@@ -229,7 +229,7 @@ export class Room {
         });
 
         peer.ws.send(
-          JSON.stringify({ action: "produceResponse", id: producer.id })
+          JSON.stringify({ action: "produceResponse", data: { id: producer.id } })
         );
 
         producer.on("close", () => {
