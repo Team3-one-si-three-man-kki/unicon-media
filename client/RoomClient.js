@@ -1,4 +1,3 @@
-// client/RoomClient.js (최종 완성 버전)
 import { EventEmitter } from "./utils/EventEmitter.js";
 
 export class RoomClient extends EventEmitter {
@@ -14,6 +13,7 @@ export class RoomClient extends EventEmitter {
     this.producers = new Map();
     this.consumers = new Map();
     this.producerIdToConsumer = new Map(); //   producerId -> consumer 맵
+    this.producerToPeerIdMap = new Map(); // producerId -> peerId 맵 추가
     this.actionCallbackMap = new Map();
     this.pendingConsumeList = [];
     this.isAdmin = false; //    관리자 여부
@@ -62,6 +62,9 @@ export class RoomClient extends EventEmitter {
           this.isAdmin = msg.data.isAdmin;
           this.emit("adminStatus", this.isAdmin); // UI 매니저에게 알림
           break;
+        case "canvas": // 추가된 부분
+          this.emit("canvas", msg.data); // 추가된 부분
+          break; // 추가된 부분
         case "rtpCapabilities":
           await this._handleRtpCapabilities(msg.data);
           break;
@@ -99,6 +102,12 @@ export class RoomClient extends EventEmitter {
             if (kind === "audio")
               this.emit("remote-audio-resume", { producerId });
           }
+          break;
+        }
+        // dominantSpeaker 이벤트 처리
+        case "dominantSpeaker": {
+          const { producerId, peerId } = msg.data;
+          this.emit("dominantSpeaker", { producerId, peerId });
           break;
         }
       }
@@ -177,7 +186,7 @@ export class RoomClient extends EventEmitter {
         video: { width: { ideal: 640 }, height: { ideal: 480 } },
         audio: true,
       });
-      const videoElement = document.getElementById("localVideo");
+      const videoElement = this.uiManager.video; // Use the reference from UIManager
       videoElement.srcObject = this.localStream;
 
       videoElement.oncanplay = () => {
@@ -261,7 +270,7 @@ export class RoomClient extends EventEmitter {
     const { producerId, kind, appData } = producerInfo;
     const consumeData = { producerId, kind, appData }; // appData도 전달
 
-    //    recvTransport가 없으면 대기열에 추가하고, 있으면 바로 consume을 시도합니다.
+    //    recvTransport가 없으면 대기열에 추가
     if (!this.recvTransport) {
       this.pendingConsumeList.push(consumeData);
     } else {
@@ -300,6 +309,10 @@ export class RoomClient extends EventEmitter {
       });
       this.consumers.set(consumer.id, consumer);
       this.producerIdToConsumer.set(producerId, consumer); //    새 맵에 추가
+      // peerId를 consumer의 appData에서 가져와 producerIdToPeerIdMap에 저장
+      if (appData && appData.peerId) {
+        this.producerToPeerIdMap.set(producerId, appData.peerId);
+      }
 
       // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
       this.emit("new-consumer", consumer);
@@ -325,9 +338,22 @@ export class RoomClient extends EventEmitter {
       this.consumers.delete(consumer.id);
       this.producerIdToConsumer.delete(producerId);
     }
-    this.emit("producer-closed", producerId);
-  }
 
+      // producerIdToPeerIdMap에서 peerId를 찾아 제거
+      const peerId = this.producerToPeerIdMap.get(producerId);
+      if (peerId) {
+        this.producerToPeerIdMap.delete(producerId);
+      }
+
+      // 화면 공유 프로듀서가 닫혔는지 확인하고, 그렇다면 UI에 알림
+      const isScreenShareProducer =
+        this.screenProducer && this.screenProducer.id === producerId;
+      // 로컬 비디오 프로듀서가 닫혔는지 확인
+      const producer = this.producers.get(producerId);
+      const isLocalVideoProducer = producer && producer.kind === 'video' && (producer.appData && !producer.appData.source);
+
+      this.emit("producer-closed", { producerId, isScreenShareProducer, isLocalVideoProducer, peerId });
+    }
   async _sendRequest(action, data) {
     return new Promise((resolve, reject) => {
       const callbackAction = `${action}Response`;
@@ -379,6 +405,9 @@ export class RoomClient extends EventEmitter {
     } else {
       await videoProducer.pause();
     }
+    // 로컬 비디오의 카메라 상태 변경은 UIManager의 전용 함수를 통해 처리
+    this.emit("localVideoStateChanged", enabled);
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
@@ -390,72 +419,72 @@ export class RoomClient extends EventEmitter {
           },
         })
       );
-    }
-  }
-  _findProducerByKind(kind) {
-    // RoomClient가 관리하는 producers 맵에서 찾습니다.
-    for (const producer of this.producers.values()) {
-      if (producer.kind === kind) {
-        return producer;
       }
     }
-    return null;
-  }
-
-  //    화면 공유 시작
-  async startScreenShare() {
-    if (this.screenProducer) {
-      console.warn("Screen sharing is already active.");
-      return;
+    _findProducerByKind(kind) {
+      // RoomClient가 관리하는 producers 맵에서 찾습니다.
+      for (const producer of this.producers.values()) {
+        if (producer.kind === kind) {
+          return producer;
+        }
+      }
+      return null;
     }
 
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
-      const track = stream.getVideoTracks()[0];
+    //    화면 공유 시작
+    async startScreenShare() {
+      if (this.screenProducer) {
+        console.warn("Screen sharing is already active.");
+        return;
+      }
 
-      this.screenProducer = await this.sendTransport.produce({
-        track,
-        appData: { source: "screen" },
-      });
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+        });
+        const track = stream.getVideoTracks()[0];
 
-      // 브라우저의 '공유 중지' 버튼 클릭 감지
-      track.onended = () => {
-        console.log("Screen sharing stopped by browser button.");
-        this.stopScreenShare();
-      };
+        this.screenProducer = await this.sendTransport.produce({
+          track,
+          appData: { source: "screen" },
+        });
 
-      this.producers.set(this.screenProducer.id, this.screenProducer);
-      this.emit("screenShareState", { isSharing: true });
-      this.emit("local-screen-share-started", this.screenProducer.track); //    로컬 UI를 위한 이벤트
-    } catch (err) {
-      console.error("    Failed to start screen sharing:", err);
+        // 브라우저의 '공유 중지' 버튼 클릭 감지
+        track.onended = () => {
+          console.log("Screen sharing stopped by browser button.");
+          this.stopScreenShare();
+        };
+
+        this.producers.set(this.screenProducer.id, this.screenProducer);
+        this.emit("screenShareState", { isSharing: true });
+        this.emit("local-screen-share-started", this.screenProducer.track); //    로컬 UI를 위한 이벤트
+      } catch (err) {
+        console.error("    Failed to start screen sharing:", err);
+      }
+    }
+
+    //    화면 공유 중지
+    async stopScreenShare() {
+      if (!this.screenProducer) {
+        console.warn("No active screen share to stop.");
+        return;
+      }
+
+      console.log(" Requesting to stop screen share.");
+      // 서버에 화면 공유 중지를 명시적으로 요청
+      this.ws.send(
+        JSON.stringify({
+          action: "stopScreenShare",
+          data: { producerId: this.screenProducer.id },
+        })
+      );
+
+      // 로컬 프로듀서 정리
+      const producerId = this.screenProducer.id;
+      this.screenProducer.close(); // 스트림을 닫고 'close' 이벤트를 발생시킴
+      this.producers.delete(producerId);
+      this.screenProducer = null;
+      this.emit("screenShareState", { isSharing: false });
+      this.emit("local-screen-share-stopped"); //    로컬 UI 정리를 위한 이벤트
     }
   }
-
-  //    화면 공유 중지
-  async stopScreenShare() {
-    if (!this.screenProducer) {
-      console.warn("No active screen share to stop.");
-      return;
-    }
-
-    console.log(" Requesting to stop screen share.");
-    // 서버에 화면 공유 중지를 명시적으로 요청
-    this.ws.send(
-      JSON.stringify({
-        action: "stopScreenShare",
-        data: { producerId: this.screenProducer.id },
-      })
-    );
-
-    // 로컬 프로듀서 정리
-    const producerId = this.screenProducer.id;
-    this.screenProducer.close(); // 스트림을 닫고 'close' 이벤트를 발생시킴
-    this.producers.delete(producerId);
-    this.screenProducer = null;
-    this.emit("screenShareState", { isSharing: false });
-    this.emit("local-screen-share-stopped"); //    로컬 UI 정리를 위한 이벤트
-  }
-}
