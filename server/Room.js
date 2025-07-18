@@ -31,6 +31,7 @@ export class Room {
         this.dominantSpeaker = {
           producerId: producer.id,
           peerId: producer.appData.peerId,
+          volume: volume, // 현재 볼륨 정보도 저장
         };
         console.log(
           `[Room ${this.id}] 🎤 New dominant speaker: peer ${this.dominantSpeaker.peerId}`
@@ -39,10 +40,7 @@ export class Room {
         this.broadcast(null, {
           // 모든 사람에게 방송
           action: "dominantSpeaker",
-          data: {
-            producerId: producer.id,
-            peerId: this.dominantSpeaker.peerId,
-          },
+          data: this.dominantSpeaker,
         });
       }
     });
