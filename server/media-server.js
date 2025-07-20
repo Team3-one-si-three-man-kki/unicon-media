@@ -45,6 +45,28 @@ export async function getRouterForNewRoom() {
   return router;
 }
 
+export async function getWorkersDetails() {
+  const stats = [];
+  for (const worker of workers) {
+    try {
+      // getResourceUsage는 Promise를 반환하므로 await를 사용합니다.
+      const usage = await worker.getResourceUsage();
+      stats.push({
+        pid: worker.pid, // 워커의 프로세스 ID
+        appData: worker.appData, // 워커에 커스텀 데이터를 저장했다면 포함
+        cpuUsage: usage.cpu, // 워커 프로세스의 CPU 사용 정보
+        memoryUsage: {
+          rss: usage.rss, // 실제 메모리 사용량
+        }
+      });
+    } catch (error) {
+      console.error(`Could not get resource usage for worker ${worker.pid}`, error);
+      stats.push({ pid: worker.pid, error: 'Could not fetch stats' });
+    }
+  }
+  return stats;
+}
+
 // 라운드 로빈 방식으로 다음 워커를 할당합니다.
 function getNextWorker() {
   const worker = workers[nextWorkerIdx];
@@ -102,24 +124,6 @@ export async function createWebRtcTransport(router) {
     throw error;
   }
 }
-
-// 서버 통계 정보 조회
-// 일단은 사용안함 -> 클로드 확인 필요
-// export function getServerStats() {
-//   if (!router || !worker) {
-//     return null;
-//   }
-
-//   return {
-//     workerId: worker.pid,
-//     routerId: router.id,
-//     transports: router.transports.size,
-//     producers: router.producers.size,
-//     consumers: router.consumers.size,
-//     memory: process.memoryUsage(),
-//     uptime: process.uptime(),
-//   };
-// }
 
 // Graceful shutdown
 export async function shutdownMediaServer() {
