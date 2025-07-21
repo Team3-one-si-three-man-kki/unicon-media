@@ -1,6 +1,6 @@
 // server/signaling-server.js
 import dotenv from "dotenv";
-// import { createClient } from "redis";
+import { createClient } from "redis";
 import jwt from "jsonwebtoken";
 import os from "os";
 dotenv.config(); // 이 코드를 최상단에 추가합니다.
@@ -14,17 +14,17 @@ import url from "url";
 import { startMediaServer, getRouterForNewRoom, getWorkersDetails } from "./media-server.js";
 import { Room } from "./Room.js";
 
-// const redisClient = createClient({
-//   url: process.env.REDIS_URL || "redis://localhost:6379",
-// });
+const redisClient = createClient({
+  url: process.env.REDIS_URL || "redis://localhost:6379",
+});
 
-// redisClient.on("error", (err) => console.error("❌ Redis Client Error", err));
-// await redisClient.connect();
+redisClient.on("error", (err) => console.error("❌ Redis Client Error", err));
+await redisClient.connect();
 
-// // --- Constants ---
+// --- Constants ---
 // const JWT_SECRET = process.env.JWT_SECRET;
-// const ATTENDANCE_QUEUE_KEY = process.env.ATTENDANCE_QUEUE_KEY;
-// const LIVE_SESSIONS_KEY_PREFIX = process.env.LIVE_SESSIONS_KEY_PREFIX;
+const ATTENDANCE_QUEUE_KEY = process.env.ATTENDANCE_QUEUE_KEY;
+const LIVE_SESSIONS_KEY_PREFIX = process.env.LIVE_SESSIONS_KEY_PREFIX;
 
 const PORT = process.env.PORT || 3000;
 
@@ -83,32 +83,32 @@ wss.on("connection", async (ws, req) => {
     transport: null,
   };
 
-  // //사용자 입장 시, Redis에 임시 출석 정보를 저장합니다.
-  // try {
-  //   const entryData = {
-  //     sessionId: roomId,
-  //     peerId: peerId,
-  //     name: userName || "Anonymous",
-  //     email: userEmail || "anonymous@example.com",
-  //     ipAddress: req.socket.remoteAddress,
-  //     joinTime: new Date().toISOString(),
-  //   };
-  //   // HSET: Hash 자료구조에 데이터를 저장합니다. 키는 "live:peerId"
-  //   await redisClient.hSet(`${LIVE_SESSIONS_KEY_PREFIX}${peerId}`, entryData);
-  //   console.log(`[Redis] 📝 Peer ${peerId} entry data stored.`);
-  // } catch (error) {
-  //   console.error(`❌ Failed to store entry data for peer ${peerId}:`, error);
-  // }
+  //사용자 입장 시, Redis에 임시 출석 정보를 저장합니다.
+  try {
+    const entryData = {
+      sessionId: roomId,
+      peerId: peerId,
+      name: userName || "Anonymous",
+      email: userEmail || "anonymous@example.com",
+      ipAddress: req.socket.remoteAddress,
+      joinTime: new Date().toISOString(),
+    };
+    // HSET: Hash 자료구조에 데이터를 저장합니다. 키는 "live:peerId"
+    await redisClient.hSet(`${LIVE_SESSIONS_KEY_PREFIX}${peerId}`, entryData);
+    console.log(`[Redis] Peer ${peerId} entry data stored.`);
+  } catch (error) {
+    console.error(` Failed to store entry data for peer ${peerId}:`, error);
+  }
 
   room.addPeer(peer);
 
   ws.on("message", (message) => {
     try {
       const msg = JSON.parse(message);
-      // ✅ 메시지 처리를 해당 Room 객체에 위임
+      // 메시지 처리를 해당 Room 객체에 위임
       room.handleMessage(peer, msg);
     } catch (error) {
-      console.error(`❌ Message handling error for peer ${peerId}:`, error);
+      console.error(` Message handling error for peer ${peerId}:`, error);
     }
   });
 
@@ -217,36 +217,29 @@ async function cleanup(room, peer) {
       producerId: producer.id,
     });
   }
-  // // 이거 말고 한번에 종료??
-  // // 그리고 env 파일도 서버에 올리기!!
+  // 이거 말고 한번에 종료??
+  // 그리고 env 파일도 서버에 올리기!!
 
-  // // ✅ 데이터베이스에 직접 저장하는 대신, Redis 큐에 출석 정보를 추가합니다.
-  // try {
-  //   const entryData = await redisClient.hGetAll(
-  //     `${LIVE_SESSIONS_KEY_PREFIX}${peer.peerId}`
-  //   );
-  //   if (entryData && entryData.joinTime) {
-  //     const finalAttendanceData = {
-  //       ...entryData,
-  //       leaveTime: new Date().toISOString(),
-  //     };
-  //     // 완성된 데이터를 DB 저장 대기열(Queue)에 추가
-  //     await redisClient.rPush(
-  //       ATTENDANCE_QUEUE_KEY,
-  //       JSON.stringify(finalAttendanceData)
-  //     );
-  //     console.log(
-  //       `[Redis] ➡️ Queued final attendance record for peer ${peer.peerId}`
-  //     );
-  //     // 처리한 임시 데이터는 Redis에서 삭제
-  //     await redisClient.del(`${LIVE_SESSIONS_KEY_PREFIX}${peer.peerId}`);
-  //   }
-  // } catch (error) {
-  //   console.error(
-  //     `❌ Failed to process leave record for peer ${peer.peerId}:`,
-  //     error
-  //   );
-  // }
+  // ✅ 데이터베이스에 직접 저장하는 대신, Redis 큐에 출석 정보를 추가합니다.
+  try {
+    const entryData = await redisClient.hGetAll(`${LIVE_SESSIONS_KEY_PREFIX}${peer.peerId}`);
+    if (entryData && entryData.joinTime) {
+      const finalAttendanceData = {
+        ...entryData,
+        leaveTime: new Date().toISOString(),
+      };
+      // 완성된 데이터를 DB 저장 대기열(Queue)에 추가
+      await redisClient.rPush(ATTENDANCE_QUEUE_KEY, JSON.stringify(finalAttendanceData));
+      console.log(`[Redis] ➡️ Queued final attendance record for peer ${peer.peerId}`);
+      // 처리한 임시 데이터는 Redis에서 삭제
+      await redisClient.del(`${LIVE_SESSIONS_KEY_PREFIX}${peer.peerId}`);
+    }
+  } catch (error) {
+    console.error(
+      `❌ Failed to process leave record for peer ${peer.peerId}:`,
+      error
+    );
+  }
 
   room.removePeer(peer.peerId);
 
@@ -261,7 +254,7 @@ async function cleanup(room, peer) {
 httpsServer.on("request", async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, submissionid");
 
   if (req.method === "OPTIONS") {
     res.writeHead(204); // No Content
