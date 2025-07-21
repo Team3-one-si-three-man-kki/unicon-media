@@ -51,12 +51,17 @@ export async function getWorkersDetails() {
     try {
       // getResourceUsage는 Promise를 반환하므로 await를 사용합니다.
       const usage = await worker.getResourceUsage();
+      console.log("usage", usage)
       stats.push({
-        pid: worker.pid, // 워커의 프로세스 ID
-        appData: worker.appData, // 워커에 커스텀 데이터를 저장했다면 포함
-        cpuUsage: usage.cpu, // 워커 프로세스의 CPU 사용 정보
+        pid: worker.pid,
+        appData: worker.appData,
+        cpuTime: {
+          user: usage.ru_utime,
+          system: usage.ru_stime
+        },
         memoryUsage: {
-          rss: usage.rss, // 실제 메모리 사용량
+          maxRssKb: usage.ru_maxrss,
+          maxRssMb: (usage.ru_maxrss / 1024).toFixed(2)
         }
       });
     } catch (error) {
