@@ -259,6 +259,15 @@ async function cleanup(room, peer) {
 
 // httpsServer 요청 핸들러 부분을 수정하여 아래 로직을 추가합니다.
 httpsServer.on("request", async (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204); // No Content
+    return res.end();
+  }
+
   const reqUrl = url.parse(req.url, true);
   const path = reqUrl.pathname;
 
@@ -278,7 +287,7 @@ httpsServer.on("request", async (req, res) => {
     });
   } else if (path === "/api/admin/tenant-stats" && req.method === "GET") {
     return authenticateAdmin(req, res, (user) => {
-      const tenantId = path.split('/')[4];
+      const tenantId = reqUrl.query.tenantId; // 쿼리 파라미터에서 tenantId를 가져옵니다.
       if (!tenantId) {
         res.writeHead(400, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ message: "Tenant ID is required." }));
