@@ -51,10 +51,9 @@ export async function getWorkersDetails() {
     try {
       // getResourceUsage는 Promise를 반환하므로 await를 사용합니다.
       const usage = await worker.getResourceUsage();
-      console.log("usage", usage)
       stats.push({
         pid: worker.pid,
-        appData: worker.appData,
+
         cpuTime: {
           user: usage.ru_utime,
           system: usage.ru_stime
