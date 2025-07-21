@@ -3,9 +3,10 @@ import { WebSocket } from "ws";
 import { createWebRtcTransport } from "./media-server.js";
 
 export class Room {
-  constructor(roomId, router) {
+  constructor(roomId, router, tenantId = null) {
     this.id = roomId;
     this.router = router;
+    this.tenantId = tenantId;
     this.peers = new Map();
     this.adminPeerId = null; // ✅ 관리자 peerId 저장
 
