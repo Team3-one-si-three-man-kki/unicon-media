@@ -535,7 +535,7 @@ export class UIManager {
       .video-conference-app .video-paused-indicator {
         width: 28px;
         height: 28px;
-        background-color: rgba(0, 0, 0, 0.8);
+        background-color: rgba(255, 255, 255, 0.8);
         border-radius: 50%;
         background-repeat: no-repeat;
         background-position: center;
