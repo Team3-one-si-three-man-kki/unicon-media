@@ -51,7 +51,7 @@ wss.on("connection", async (ws, req) => {
 
   const { query } = url.parse(req.url, true);
   // const roomId = query.roomId;
-  const { roomId, userName, userEmail, tenantId } = query;
+  const { roomId, userName, userEmail, tenantId, maxPeers } = query; // maxPeers 추가
 
   if (!roomId) {
     ws.close(1008, "Room ID is required");
@@ -62,14 +62,22 @@ wss.on("connection", async (ws, req) => {
   if (!room) {
     try {
       const router = await getRouterForNewRoom();
-      room = new Room(roomId, router, tenantId);
+      // maxPeers 값을 Room 생성자에 전달, 기본값은 10으로 설정
+      room = new Room(roomId, router, tenantId, parseInt(maxPeers) || 10);
       rooms.set(roomId, room);
-      console.log(`✅ New room created: ${roomId}`);
+      console.log(`✅ New room created: ${roomId} with maxPeers: ${room.maxPeers}`);
     } catch (error) {
       console.error(`❌ Failed to create room ${roomId}:`, error);
       ws.close(1011, "Room creation failed");
       return;
     }
+  }
+
+  // 방이 가득 찼는지 확인
+  if (room.isRoomFull()) {
+    console.log(`❌ Room ${roomId} is full. Peer ${userName} cannot join.`);
+    ws.close(1013, "Room is full"); // 1013: 정책 위반 (예: 방 인원 제한 초과)
+    return;
   }
 
   const peerId = crypto.randomUUID();

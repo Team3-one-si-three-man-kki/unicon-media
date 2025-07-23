@@ -3,10 +3,11 @@ import { WebSocket } from "ws";
 import { createWebRtcTransport } from "./media-server.js";
 
 export class Room {
-  constructor(roomId, router, tenantId = null) {
+  constructor(roomId, router, tenantId = null, maxPeers = 10) { // maxPeers 추가, 기본값 10
     this.id = roomId;
     this.router = router;
     this.tenantId = tenantId;
+    this.maxPeers = maxPeers; // 최대 인원수 저장
     this.peers = new Map();
     this.adminPeerId = null; // ✅ 관리자 peerId 저장
 
@@ -82,6 +83,11 @@ export class Room {
 
   removePeer(peerId) {
     this.peers.delete(peerId);
+  }
+
+  // ✅ 방이 가득 찼는지 확인하는 메소드
+  isRoomFull() {
+    return this.peers.size >= this.maxPeers;
   }
 
   getProducerListForPeer(peerId) {
