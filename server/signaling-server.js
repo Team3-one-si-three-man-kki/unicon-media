@@ -22,7 +22,7 @@ redisClient.on("error", (err) => console.error("❌ Redis Client Error", err));
 await redisClient.connect();
 
 // --- Constants ---
-// const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET;
 const ATTENDANCE_QUEUE_KEY = process.env.ATTENDANCE_QUEUE_KEY;
 const LIVE_SESSIONS_KEY_PREFIX = process.env.LIVE_SESSIONS_KEY_PREFIX;
 
@@ -190,7 +190,7 @@ async function getComprehensiveServerStats() {
 
 function authenticateAdmin(req, res, callback) {
   // (테스트 시 이 부분을 주석 해제하고 사용)
-  return callback({ userId: 'test-admin' });
+  // return callback({ userId: 'test-admin' });
 
   try {
     const authHeader = req.headers['authorization'];
@@ -200,6 +200,7 @@ function authenticateAdmin(req, res, callback) {
       return res.end(JSON.stringify({ message: "Access denied. No token provided." }));
     }
     const decoded = jwt.verify(token, JWT_SECRET);
+    console.log("decoded", decoded);
     if (decoded.role !== 'admin') {
       res.writeHead(403, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ message: "Access denied. Admin role required." }));
