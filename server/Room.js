@@ -359,27 +359,22 @@ export class Room {
       }
 
       case "changeProducerState": {
-        const { producerId, kind, action: producerAction } = msg.data;
+        const { producerId, kind, action: producerAction, userName } = msg.data;
+
         console.log(
           `[Room ${this.id}] Peer ${peer.peerId} changed producer ${producerId} state to ${producerAction}`
         );
 
         // 요청을 보낸 클라이언트를 제외한 다른 모든 피어에게 상태 변경을 알립니다.
-        // this.peers.values()를 사용하고, 현재 peer와 비교합니다.
-        for (const otherPeer of this.peers.values()) {
-          if (otherPeer.peerId === peer.peerId) continue;
-
-          otherPeer.ws.send(
-            JSON.stringify({
-              action: "producerStateChanged", // 클라이언트가 받을 액션 이름
-              data: {
-                producerId,
-                kind,
-                state: producerAction, // 'pause' 또는 'resume'
-              },
-            })
-          );
-        }
+        this.broadcast(peer.peerId, {
+          action: "producerStateChanged", // 클라이언트가 받을 액션 이름
+          data: {
+            producerId,
+            kind,
+            state: producerAction, // 'pause' 또는 'resume'
+            userName: userName,
+          },
+        });
         break;
       }
 
