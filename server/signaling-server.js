@@ -200,7 +200,6 @@ function authenticateAdmin(req, res, callback) {
       return res.end(JSON.stringify({ message: "Access denied. No token provided." }));
     }
     const decoded = jwt.verify(token, JWT_SECRET);
-    console.log("decoded", decoded);
     if (decoded.role !== 'admin') {
       res.writeHead(403, { "Content-Type": "application/json" });
       return res.end(JSON.stringify({ message: "Access denied. Admin role required." }));
@@ -276,7 +275,7 @@ httpsServer.on("request", async (req, res) => {
   if (path === "/api/admin/server-stats" && req.method === "GET") {
     return authenticateAdmin(req, res, async (user) => {
       try {
-        console.log(`[Admin] Server stats requested by ${user.userId}`);
+        console.log(`[Admin] Server stats requested by ${user.sub}`);
         const stats = await getComprehensiveServerStats();
 
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -294,7 +293,7 @@ httpsServer.on("request", async (req, res) => {
         res.writeHead(400, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ message: "Tenant ID is required." }));
       }
-      console.log(`[Admin] Tenant stats for '${tenantId}' requested by ${user.userId}`);
+      console.log(`[Admin] Tenant stats for '${tenantId}' requested by ${user.sub}`);
 
 
       const tenantRooms = Array.from(rooms.values()).filter(room => room.tenantId === tenantId);
