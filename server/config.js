@@ -38,7 +38,7 @@ export const config = {
       "svc",
     ],
     rtcMinPort: parseInt(process.env.MEDIASOUP_MIN_PORT) || 40000,
-    rtcMaxPort: parseInt(process.env.MEDIASOUP_MAX_PORT) || 49999,
+    rtcMaxPort: parseInt(process.env.MEDIASOUP_MAX_PORT) || 40010,
   },
 
   // 네트워크 설정

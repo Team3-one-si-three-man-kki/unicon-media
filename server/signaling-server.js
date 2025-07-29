@@ -6,7 +6,8 @@ import os from "os";
 dotenv.config(); // 이 코드를 최상단에 추가합니다.
 
 import fs from "fs";
-import https from "https";
+// import https from "https";
+import https from "http";
 import { WebSocketServer } from "ws";
 import crypto from "crypto";
 import url from "url";
@@ -28,11 +29,12 @@ const LIVE_SESSIONS_KEY_PREFIX = process.env.LIVE_SESSIONS_KEY_PREFIX;
 
 const PORT = process.env.PORT || 3000;
 
-const options = {
-  cert: fs.readFileSync("../cert.pem"),
-  key: fs.readFileSync("../key.pem"),
-};
-const httpsServer = https.createServer(options);
+// const options = {
+//   cert: fs.readFileSync("../cert.pem"),
+//   key: fs.readFileSync("../key.pem"),
+// };
+// const httpsServer = https.createServer(options);
+const httpsServer = https.createServer();
 const wss = new WebSocketServer({ server: httpsServer });
 
 const rooms = new Map(); // ✅ roomId -> Room 객체 맵
@@ -271,6 +273,11 @@ httpsServer.on("request", async (req, res) => {
 
   const reqUrl = url.parse(req.url, true);
   const path = reqUrl.pathname;
+
+  if (path === "/" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    return res.end("OK");
+  }
 
   if (path === "/api/admin/server-stats" && req.method === "GET") {
     return authenticateAdmin(req, res, async (user) => {
