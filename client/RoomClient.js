@@ -112,6 +112,10 @@ export class RoomClient extends EventEmitter {
           this.emit("dominantSpeaker", { producerId, peerId });
           break;
         }
+        case "peerClosed": {
+          this._handlePeerClosed(msg.data);
+          break;
+        }
       }
     };
   }
@@ -129,6 +133,18 @@ export class RoomClient extends EventEmitter {
 
   _waitForAction(actionName, callback) {
     this.actionCallbackMap.set(actionName, callback);
+  }
+
+  _handlePeerClosed({ peerId }) {
+    console.log(` Peer ${peerId} has left the room.`);
+    // 이 peer가 남긴 모든 consumer를 찾아서 정리합니다.
+    for (const consumer of this.consumers.values()) {
+      if (consumer.appData.peerId === peerId) { // consumer 생성 시 peerId를 저장해두어야 함
+        consumer.close();
+        this.consumers.delete(consumer.id);
+        this.emit('consumer-closed', { consumerId: consumer.id, peerId: peerId });
+      }
+    }
   }
 
   async _handleRtpCapabilities(data) {
