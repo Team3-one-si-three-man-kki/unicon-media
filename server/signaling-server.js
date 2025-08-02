@@ -274,12 +274,12 @@ httpsServer.on("request", async (req, res) => {
   const reqUrl = url.parse(req.url, true);
   const path = reqUrl.pathname;
 
-  if (path === "/" && req.method === "GET") {
+  if (path === "/ws" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "text/plain" });
     return res.end("OK");
   }
 
-  if (path === "/api/admin/server-stats" && req.method === "GET") {
+  if (path === "/ws/api/admin/server-stats" && req.method === "GET") {
     return authenticateAdmin(req, res, async (user) => {
       try {
         console.log(`[Admin] Server stats requested by ${user.sub}`);
@@ -293,7 +293,7 @@ httpsServer.on("request", async (req, res) => {
         res.end(JSON.stringify({ message: "Server Error" }));
       }
     });
-  } else if (path === "/api/admin/tenant-stats" && req.method === "GET") {
+  } else if (path === "/ws/api/admin/tenant-stats" && req.method === "GET") {
     return authenticateAdmin(req, res, (user) => {
       const tenantId = reqUrl.query.tenantId; // 쿼리 파라미터에서 tenantId를 가져옵니다.
       if (!tenantId) {
@@ -319,7 +319,7 @@ httpsServer.on("request", async (req, res) => {
   }
 
   // 예: /room-info?roomId=some-room-id
-  else if (path === "/api/admin/session-info" && req.method === "GET") {
+  else if (path === "/ws/api/admin/session-info" && req.method === "GET") {
     return authenticateAdmin(req, res, (user) => {
       const roomId = reqUrl.query.roomId;
       if (!roomId) {
