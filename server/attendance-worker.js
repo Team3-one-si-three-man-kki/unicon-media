@@ -35,6 +35,8 @@ function toMariaDBDatetime(isoString) {
 
 async function processQueue() {
   let connection;
+  // await redisClient.del(ATTENDANCE_QUEUE_KEY);
+  // console.log("REIDS")
 
   try {
     // lrange와 ltrim을 사용해 큐에서 데이터를 안전하게 가져오고 처리된 항목을 제거합니다.
@@ -76,6 +78,11 @@ async function processQueue() {
       toMariaDBDatetime(record.joinTime),
       toMariaDBDatetime(record.leaveTime)
     ]);
+
+    if (values.length === 0) {
+      console.warn('[Worker] No valid attendance records to insert.');
+      return;
+    }
 
     // DB에 Batch Insert 실행
     await connection.query(sql, [values]);
