@@ -827,7 +827,7 @@ export class UIManager {
     }
   }
 
-  //   [추가] drawFaceMesh가 참조할 로컬 비디오와 캔버스를 설정하는 함수
+  //  drawFaceMesh가 참조할 로컬 비디오와 캔버스를 설정하는 함수
   setLocalMediaElements(videoEl, canvasEl) {
     this.video = videoEl;
     this.canvas = canvasEl;

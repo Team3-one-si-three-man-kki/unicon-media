@@ -1,5 +1,3 @@
-// rollup.config.js
-
 import resolve from "@rollup/plugin-node-resolve";
 import commonjs from "@rollup/plugin-commonjs";
 import copy from "rollup-plugin-copy";
@@ -7,7 +5,7 @@ import replace from "@rollup/plugin-replace";
 import dotenv from "dotenv";
 dotenv.config();
 
-// 여러 개의 번들을 생성하기 위해 배열 형태로 설정을 만듭니다.
+// 여러 개의 번들을 생성하기 위해 배열 형태로 설정
 export default [
   // 1. 메인 애플리케이션 번들
   {
