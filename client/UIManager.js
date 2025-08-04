@@ -136,8 +136,6 @@ export class UIManager {
 
     // Controls section
     this.createControls();
-
-    console.log("UIManager: Modern Zoom-style UI created.");
   }
 
   createHeader() {
@@ -205,7 +203,6 @@ export class UIManager {
 
     // Settings button
     this.settingsButton = this.createHeaderButton("⚙", "설정", () => {
-      console.log("Settings clicked");
     });
 
     headerControls.appendChild(this.fullscreenButton);
@@ -637,7 +634,6 @@ export class UIManager {
   }
 
   enableControls() {
-    console.log("Enabling media controls...");
     this.muteButton.disabled = false;
     this.cameraOffButton.disabled = false;
 
@@ -651,7 +647,6 @@ export class UIManager {
   }
 
   enableScreenSharing(onClickCallback) {
-    console.log("Enabling screen sharing feature...");
     this.screenShareButton.disabled = false;
     this.screenShareButton.onclick = onClickCallback;
     this.screenShareButton.style.background = 'linear-gradient(135deg, #3498db, #2980b9)';
@@ -794,14 +789,12 @@ export class UIManager {
 
     screenShareWrapper.appendChild(element);
     this.mainStageContainer.appendChild(screenShareWrapper);
-    console.log("Added local screen share to UI.");
   }
 
   removeLocalScreenShare() {
     const element = document.getElementById("local-screen-share-wrapper");
     if (element) {
       element.remove();
-      console.log("Removed local screen share from UI.");
       this.updateLayoutForScreenShare(false); // 레이아웃 복원
     }
   }
@@ -834,7 +827,7 @@ export class UIManager {
     }
   }
 
-  // ✅ [추가] drawFaceMesh가 참조할 로컬 비디오와 캔버스를 설정하는 함수
+  //   [추가] drawFaceMesh가 참조할 로컬 비디오와 캔버스를 설정하는 함수
   setLocalMediaElements(videoEl, canvasEl) {
     this.video = videoEl;
     this.canvas = canvasEl;

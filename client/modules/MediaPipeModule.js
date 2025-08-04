@@ -1,8 +1,6 @@
-// client/modules/MediaPipeModule.js
-
 import { EventEmitter } from "../utils/EventEmitter.js";
 
-// ✅ EventEmitter를 상속받습니다.
+// EventEmitter를 상속
 export class MediaPipeModule extends EventEmitter {
   constructor(videoElement, url) {
     super();
@@ -10,7 +8,6 @@ export class MediaPipeModule extends EventEmitter {
     this.videoElement = videoElement;
     this.worker = new Worker(url);
 
-    // ✅ 1. 모든 상태와 상수를 클래스의 속성(this)으로 변경합니다.
     this.isDrowsy = false;
     this.isPresent = true;
 
@@ -22,14 +19,13 @@ export class MediaPipeModule extends EventEmitter {
     this.closureFrames = 0;
     this.absenceCounter = 0;
     this.ABSENCE_CONSECUTIVE_FRAMES = 15; // 필요에 따라 조정
-    this.analysisIntervalId = null; // ✅ AI 분석 루프의 ID를 저장할 변수
+    this.analysisIntervalId = null; // AI 분석 루프의 ID를 저장할 변수
 
     this.worker.onerror = (error) => {
-      console.error("❌ MediaPipe Worker 오류:", error);
-      this.emit("error", error); // 에러도 이벤트로 외부에 알립니다.
+      console.error(" MediaPipe Worker 오류:", error);
+      this.emit("error", error); // 에러도 이벤트로 외부에 알림
     };
 
-    // ✅ 경쟁 상태(Race Condition)를 피하기 위해 onmessage 핸들러를 생성자에서 설정합니다.
     this.worker.onmessage = (event) => {
       const { type, landmarks } = event.data;
       if (type === "ready") {
@@ -40,13 +36,11 @@ export class MediaPipeModule extends EventEmitter {
     };
   }
 
-  // ✅ AI 분석을 시작하는 메소드
+  // AI 분석을 시작
   start() {
     if (this.analysisIntervalId) {
-      console.log("AI analysis is already running.");
       return;
     }
-    console.log("🚀 Starting AI analysis loop.");
     const AI_ANALYSIS_INTERVAL = 200;
     this.analysisIntervalId = setInterval(async () => {
       if (
@@ -60,7 +54,7 @@ export class MediaPipeModule extends EventEmitter {
           this.worker.postMessage({ imageBitmap }, [imageBitmap]);
         } catch (error) {
           console.error(
-            "❌ Error creating ImageBitmap in MediaPipeModule:",
+            "Error creating ImageBitmap in MediaPipeModule:",
             error
           );
         }
@@ -68,25 +62,21 @@ export class MediaPipeModule extends EventEmitter {
     }, AI_ANALYSIS_INTERVAL);
   }
 
-  // ✅ AI 분석을 중지하는 메소드
+  // AI 분석을 중지
   stop() {
     if (!this.analysisIntervalId) {
-      console.log("AI analysis is not running.");
       return;
     }
-    console.log("🛑 Stopping AI analysis loop.");
     clearInterval(this.analysisIntervalId);
     this.analysisIntervalId = null;
   }
 
   _startAnalysisLoop() {
-    // 이제 이 함수는 start() 메소드에 의해 관리되므로 비워두거나,
-    // 초기 자동 시작이 필요하다면 로직을 유지할 수 있습니다.
-    // 현재 요구사항에서는 외부에서 제어하므로 비워둡니다.
+    // 초기 자동 시작이 필요시 여기에 로직 추가 가능
   }
 
   _handleAnalysisResult(landmarks) {
-    // ✅ 2. 랜드마크 그리기 요청은 이벤트로만 방송합니다.
+    // 랜드마크 그리기 요청은 이벤트로만 방송
     this.emit("landmarksUpdate", landmarks);
 
     const previousIsPresent = this.isPresent;
@@ -129,7 +119,7 @@ export class MediaPipeModule extends EventEmitter {
       this.closureFrames = 0;
     }
 
-    // ✅ 3. 상태가 '변경'되었을 때만 이벤트를 방송합니다.
+    // 상태가 '변경'되었을 때만 이벤트를 방송
     if (previousIsPresent !== this.isPresent) {
       if (!this.isPresent) {
         this.emit("absenceStarted", { isPresent: this.isPresent });

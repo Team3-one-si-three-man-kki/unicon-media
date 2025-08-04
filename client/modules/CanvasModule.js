@@ -1,6 +1,6 @@
 import { EventEmitter } from "../utils/EventEmitter.js";
 
-// fabric.js, uuid, pako와 같은 외부 라이브러리는 동적으로 로드됩니다.
+// fabric.js, uuid, pako와 같은 외부 라이브러리는 동적으로 로드
 
 export class CanvasModule extends EventEmitter {
   constructor(container, websocketUrl, workerUrl) {
@@ -55,7 +55,6 @@ export class CanvasModule extends EventEmitter {
 
     Promise.all(dependencies.map(loadScript))
       .then(() => {
-        console.log("All canvas dependencies loaded.");
         this.senderId = uuid.v4();
 
         // 의존성 로드 완료 후 나머지 초기화 실행
@@ -181,7 +180,6 @@ export class CanvasModule extends EventEmitter {
   }
 
   _attachEventListeners() {
-    // ... (이전과 동일한 이벤트 리스너 로직)
     const tools = ["select", "pen", "eraser", "rect", "circle", "line", "text"];
     tools.forEach((t) => {
       const button = this.container.querySelector(`#canvas-${t}`);
@@ -269,7 +267,6 @@ export class CanvasModule extends EventEmitter {
     this.canvas.on("object:modified", this._handleObjectModified.bind(this));
   }
 
-  // ... (나머지 핸들러 및 메서드는 이전과 거의 동일)
   _handleBgToggle() {
     this.bgOn = !this.bgOn;
     this.bgToggle.classList.toggle("active", this.bgOn);
@@ -621,7 +618,6 @@ export class CanvasModule extends EventEmitter {
   }
 
   destroy() {
-    console.log("Destroying CanvasModule");
     if (this.pingInterval) clearInterval(this.pingInterval);
     if (this.resizeObserver) this.resizeObserver.disconnect();
     if (this.worker) this.worker.terminate();

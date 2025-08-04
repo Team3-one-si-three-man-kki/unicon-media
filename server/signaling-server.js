@@ -1,9 +1,8 @@
-// server/signaling-server.js
 import dotenv from "dotenv";
 import { createClient } from "redis";
 import jwt from "jsonwebtoken";
 import os from "os";
-dotenv.config(); // 이 코드를 최상단에 추가합니다.
+dotenv.config();
 
 import fs from "fs";
 import https from "https";
@@ -19,7 +18,7 @@ const redisClient = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
 
-redisClient.on("error", (err) => console.error("❌ Redis Client Error", err));
+redisClient.on("error", (err) => console.error(" Redis Client Error", err));
 await redisClient.connect();
 
 // --- Constants ---
@@ -37,22 +36,19 @@ const httpsServer = https.createServer(options);
 // const httpsServer = https.createServer();
 const wss = new WebSocketServer({ server: httpsServer });
 
-const rooms = new Map(); // ✅ roomId -> Room 객체 맵
+const rooms = new Map(); //   roomId -> Room 객체 맵
 
 await startMediaServer();
 
 httpsServer.listen(PORT, () => {
   console.log(
-    `✅ HTTPS + WSS signaling server running on https://localhost:${PORT}`
+    `  HTTPS + WSS signaling server running on https://localhost:${PORT}`
   );
   console.log(`${process.env.MEDIASOUP_ANNOUNCED_IP}`);
 });
 
 wss.on("connection", async (ws, req) => {
-  console.log("🔌 Client connecting...");
-
   const { query } = url.parse(req.url, true);
-  // const roomId = query.roomId;
   const { roomId, userName, userEmail, tenantId, maxPeers } = query; // maxPeers 추가
 
   if (!roomId) {
@@ -67,9 +63,8 @@ wss.on("connection", async (ws, req) => {
       // maxPeers 값을 Room 생성자에 전달, 기본값은 10으로 설정
       room = new Room(roomId, router, tenantId, parseInt(maxPeers) || 10);
       rooms.set(roomId, room);
-      console.log(`✅ New room created: ${roomId} with maxPeers: ${room.maxPeers}`);
     } catch (error) {
-      console.error(`❌ Failed to create room ${roomId}:`, error);
+      console.error(`  Failed to create room ${roomId}:`, error);
       ws.close(1011, "Room creation failed");
       return;
     }
@@ -77,7 +72,6 @@ wss.on("connection", async (ws, req) => {
 
   // 방이 가득 찼는지 확인
   if (room.isRoomFull()) {
-    console.log(`❌ Room ${roomId} is full. Peer ${userName} cannot join.`);
     ws.close(1013, "Room is full"); // 1013: 정책 위반 (예: 방 인원 제한 초과)
     return;
   }
@@ -105,7 +99,6 @@ wss.on("connection", async (ws, req) => {
     };
     // HSET: Hash 자료구조에 데이터를 저장합니다. 키는 "live:peerId"
     await redisClient.hSet(`${LIVE_SESSIONS_KEY_PREFIX}${peerId}`, entryData);
-    console.log(`[Redis] Peer ${peerId} entry data stored.`);
   } catch (error) {
     console.error(` Failed to store entry data for peer ${peerId}:`, error);
   }
@@ -127,7 +120,7 @@ wss.on("connection", async (ws, req) => {
   ws.on("error", cleanupCallback);
 });
 /**
- * ✅ 모든 Room과 Worker의 상태를 종합하여 반환하는 새로운 통계 함수
+ *   모든 Room과 Worker의 상태를 종합하여 반환하는 새로운 통계 함수
  */
 async function getComprehensiveServerStats() {
   const workerInfo = await getWorkersDetails();
@@ -143,19 +136,19 @@ async function getComprehensiveServerStats() {
     let roomConsumersCount = 0;
     let roomTransportsCount = 0;
     for (const peer of room.peers.values()) {
-      roomProducersCount += peer.producers.size; //
-      roomConsumersCount += peer.consumers.size; //
-      if (peer.transport) roomTransportsCount++; //
-      if (peer.recvTransport) roomTransportsCount++; //
+      roomProducersCount += peer.producers.size;
+      roomConsumersCount += peer.consumers.size;
+      if (peer.transport) roomTransportsCount++;
+      if (peer.recvTransport) roomTransportsCount++;
     }
     roomDetails.push({
       id: room.id,
       routerId: room.router.id,
-      peersCount: room.peers.size, //
+      peersCount: room.peers.size,
       producersCount: roomProducersCount,
       consumersCount: roomConsumersCount,
       transportsCount: roomTransportsCount,
-      tenantId: room.tenantId || 'N/A', //
+      tenantId: room.tenantId || 'N/A',
     });
 
     totalPeers += room.peers.size;
@@ -215,22 +208,18 @@ function authenticateAdmin(req, res, callback) {
 
 
 async function cleanup(room, peer) {
-  console.log(`🧹 Cleaning up peer: ${peer.peerId} from room: ${room.id}`);
 
   peer.transport?.close();
 
-  // ✅ [수정] peer가 가지고 있던 각 producer에 대해 'producerClosed' 이벤트를 방송합니다.
   for (const producer of peer.producers.values()) {
-    producer.close(); // producer 자체도 닫아줍니다.
+    producer.close();
     room.broadcast(peer.peerId, {
       action: "producerClosed",
       producerId: producer.id,
     });
   }
-  // 이거 말고 한번에 종료??
-  // 그리고 env 파일도 서버에 올리기!!
 
-  // ✅ 데이터베이스에 직접 저장하는 대신, Redis 큐에 출석 정보를 추가합니다.
+  //   데이터베이스에 직접 저장하는 대신, Redis 큐에 출석 정보를 추가합니다.
   try {
     const entryData = await redisClient.hGetAll(`${LIVE_SESSIONS_KEY_PREFIX}${peer.peerId}`);
     if (entryData && entryData.joinTime) {
@@ -240,13 +229,12 @@ async function cleanup(room, peer) {
       };
       // 완성된 데이터를 DB 저장 대기열(Queue)에 추가
       await redisClient.rPush(ATTENDANCE_QUEUE_KEY, JSON.stringify(finalAttendanceData));
-      console.log(`[Redis] ➡️ Queued final attendance record for peer ${peer.peerId}`);
       // 처리한 임시 데이터는 Redis에서 삭제
       await redisClient.del(`${LIVE_SESSIONS_KEY_PREFIX}${peer.peerId}`);
     }
   } catch (error) {
     console.error(
-      `❌ Failed to process leave record for peer ${peer.peerId}:`,
+      `  Failed to process leave record for peer ${peer.peerId}:`,
       error
     );
   }
@@ -254,7 +242,6 @@ async function cleanup(room, peer) {
   room.removePeer(peer.peerId);
 
   if (room.peers.size === 0) {
-    console.log(`🗑️ Room ${room.id} is empty, closing and removing it.`);
     room.close();
     rooms.delete(room.id);
   }
@@ -300,8 +287,6 @@ httpsServer.on("request", async (req, res) => {
         res.writeHead(400, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ message: "Tenant ID is required." }));
       }
-      console.log(`[Admin] Tenant stats for '${tenantId}' requested by ${user.sub}`);
-
 
       const tenantRooms = Array.from(rooms.values()).filter(room => room.tenantId === tenantId);
       const tenantPeers = tenantRooms.reduce((sum, room) => sum + room.peers.size, 0);
@@ -318,7 +303,6 @@ httpsServer.on("request", async (req, res) => {
     });
   }
 
-  // 예: /room-info?roomId=some-room-id
   else if (path === "/api/admin/session-info" && req.method === "GET") {
     return authenticateAdmin(req, res, (user) => {
       const roomId = reqUrl.query.roomId;

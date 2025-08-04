@@ -1,15 +1,11 @@
-// client/main.js
-
-// 1. 필요한 클래스들을 import 합니다.
 import { RoomClient } from "./RoomClient.js";
 import { UIManager } from "./UIManager.js";
 
-// ✨ 동적 모듈 로더 함수 (import() 대체)
+// 동적 모듈 로더 함수 (import() 대체)
 function loadModule(url, moduleName) {
   return new Promise((resolve, reject) => {
     // 이미 로드된 모듈인지 확인
     if (window[moduleName]) {
-      console.log(`${moduleName} is already loaded.`);
       let Module = window[moduleName];
       if (Module && !Module.prototype) {
         Module = Module[moduleName] || Module.default;
@@ -23,7 +19,6 @@ function loadModule(url, moduleName) {
 
     script.onload = () => {
       if (window[moduleName]) {
-        console.log(`Successfully loaded module: ${moduleName}`);
         let Module = window[moduleName];
         if (Module && !Module.prototype) {
           Module = Module[moduleName] || Module.default;
@@ -39,7 +34,6 @@ function loadModule(url, moduleName) {
   });
 }
 
-// 이렇게 하면 app.bundle.js가 로드되는 즉시 window.App이 생성됩니다.
 window.App = {
   RoomClient: RoomClient,
   UIManager: UIManager,

@@ -1,4 +1,3 @@
-// server/Room.js (모든 핸들러가 포함된 최종 완성 버전)
 import { WebSocket } from "ws";
 import { createWebRtcTransport } from "./media-server.js";
 
@@ -9,7 +8,7 @@ export class Room {
     this.tenantId = tenantId;
     this.maxPeers = maxPeers; // 최대 인원수 저장
     this.peers = new Map();
-    this.adminPeerId = null; // ✅ 관리자 peerId 저장
+    this.adminPeerId = null; //   관리자 peerId 저장
 
     //1. 오디오 레벨 감지를 위한 observer와 상태 변수
     this.audioLevelObserver = null;
@@ -17,7 +16,7 @@ export class Room {
     this._startAudioLevelObserver(); // 생성자에서 바로 옵저버 시작
   }
 
-  // ✅ 2. AudioLevelObserver를 생성하고 이벤트를 구독하는 메소드
+  //   2. AudioLevelObserver를 생성하고 이벤트를 구독하는 메소드
   async _startAudioLevelObserver() {
     this.audioLevelObserver = await this.router.createAudioLevelObserver({
       maxEntries: 1,
@@ -35,9 +34,6 @@ export class Room {
           peerId: producer.appData.peerId,
           volume: volume, // 현재 볼륨 정보도 저장
         };
-        console.log(
-          `[Room ${this.id}] 🎤 New dominant speaker: peer ${this.dominantSpeaker.peerId}`
-        );
 
         this.broadcast(null, {
           // 모든 사람에게 방송
@@ -51,7 +47,6 @@ export class Room {
       // 방이 조용해지면 발언자 정보를 초기화
       if (this.dominantSpeaker) {
         this.dominantSpeaker = null;
-        console.log(`[Room ${this.id}] 🎤 Silence detected`);
         this.broadcast(null, {
           action: "dominantSpeaker",
           data: { producerId: null },
@@ -62,13 +57,12 @@ export class Room {
 
   addPeer(peer) {
     this.peers.set(peer.peerId, peer);
-    // ✅ 첫 번째로 입장한 사용자를 관리자로 지정
+    //   첫 번째로 입장한 사용자를 관리자로 지정
     if (!this.adminPeerId) {
       this.adminPeerId = peer.peerId;
-      console.log(`[Room ${this.id}] 👑 Admin is ${peer.peerId}`);
     }
 
-    // ✅ 현재 접속한 peer에게 관리자 여부와 ID를 알려줌
+    //   현재 접속한 peer에게 관리자 여부와 ID를 알려줌
     peer.ws.send(
       JSON.stringify({
         action: "adminInfo",
@@ -85,7 +79,7 @@ export class Room {
     this.peers.delete(peerId);
   }
 
-  // ✅ 방이 가득 찼는지 확인하는 메소드
+  //   방이 가득 찼는지 확인하는 메소드
   isRoomFull() {
     return this.peers.size >= this.maxPeers;
   }
@@ -93,13 +87,12 @@ export class Room {
   getProducerListForPeer(peerId) {
     const producerList = [];
     for (const otherPeer of this.peers.values()) {
-      // ✅ 자기 자신의 producer는 목록에 포함하지 않습니다.
       if (otherPeer.peerId === peerId) continue;
       for (const producer of otherPeer.producers.values()) {
         producerList.push({
           producerId: producer.id,
           kind: producer.kind,
-          appData: producer.appData, // ✅ appData 추가
+          appData: producer.appData, //   appData 추가
         });
       }
     }
@@ -122,7 +115,6 @@ export class Room {
     }
   }
 
-  // ✅ 모든 시그널링 액션을 처리하도록 완성된 메소드
   async handleMessage(peer, msg) {
     const { action, data } = msg;
 
@@ -150,7 +142,6 @@ export class Room {
       }
 
       case "createTransport": {
-        // ✅ 이제 send/recv를 하나의 transport로 관리합니다.
         const transport = await createWebRtcTransport(this.router);
         peer.transport = transport;
 
@@ -167,7 +158,6 @@ export class Room {
         );
         break;
       }
-      // ✅ 새로 추가할 부분: createConsumerTransport 액션 처리
       case "createConsumerTransport": {
         const transport = await createWebRtcTransport(this.router);
         peer.recvTransport = transport; // peer 객체에 recvTransport 저장
@@ -186,12 +176,10 @@ export class Room {
 
         transport.on("dtlsstatechange", (dtlsState) => {
           if (dtlsState === "closed") {
-            console.log("Consumer transport DTLS closed");
             peer.recvTransport = null;
           }
         });
         transport.on("close", () => {
-          console.log("Consumer transport closed");
           peer.recvTransport = null;
         });
         break;
@@ -202,7 +190,6 @@ export class Room {
         break;
       }
       case "connectConsumerTransport": {
-        // 이 부분도 추가해야 합니다.
         await peer.recvTransport.connect({
           dtlsParameters: data.dtlsParameters,
         });
@@ -211,13 +198,13 @@ export class Room {
       }
 
       case "produce": {
-        const { kind, rtpParameters, appData } = data; // ✅ appData를 클라이언트에서 직접 받음
+        const { kind, rtpParameters, appData } = data; //   appData를 클라이언트에서 직접 받음
         const producer = await peer.transport.produce({
           kind,
           rtpParameters,
           appData: {
             ...appData, // 화면 공유 정보 등
-            peerId: peer.peerId, // peerId는 서버에서 확실하게 추가
+            peerId: peer.peerId,
             peerName: peer.name,
             peerEmail: peer.email, // 추가 정보
           },
@@ -232,7 +219,7 @@ export class Room {
           action: "newProducerAvailable",
           producerId: producer.id,
           kind: producer.kind,
-          appData: producer.appData, // ✅ appData도 함께 브로드캐스트
+          appData: producer.appData, //   appData도 함께 브로드캐스트
         });
 
         peer.ws.send(
@@ -240,7 +227,6 @@ export class Room {
         );
 
         producer.on("close", () => {
-          console.log(`Producer ${producer.id} transport closed`);
           peer.producers.delete(producer.id);
 
           if (producer.kind === "audio") {
@@ -343,11 +329,6 @@ export class Room {
         const { producerId } = data;
         const producer = peer.producers.get(producerId);
         if (producer) {
-          console.log(
-            `🎬 Closing screen share producer ${producerId} by request.`
-          );
-
-          // 'close' 이벤트에만 의존하지 않고, 여기서 직접 브로드캐스트를 실행합니다.
           this.broadcast(null, {
             action: "producerClosed",
             producerId: producer.id,
@@ -360,10 +341,6 @@ export class Room {
 
       case "changeProducerState": {
         const { producerId, kind, action: producerAction, userName } = msg.data;
-
-        console.log(
-          `[Room ${this.id}] Peer ${peer.peerId} changed producer ${producerId} state to ${producerAction}`
-        );
 
         // 요청을 보낸 클라이언트를 제외한 다른 모든 피어에게 상태 변경을 알립니다.
         this.broadcast(peer.peerId, {
@@ -379,7 +356,7 @@ export class Room {
       }
 
       case "canvas": {
-        // 👇 sender 포함 전체에게 canvas 메시지를 보냄
+        // sender 포함 전체에게 canvas 메시지를 보냄
         this.broadcastToAll({
           action: "canvas",
           data: data,
@@ -390,7 +367,6 @@ export class Room {
   }
 
   close() {
-    console.log(`Closing router for room ${this.id}`);
     this.router.close();
   }
 }

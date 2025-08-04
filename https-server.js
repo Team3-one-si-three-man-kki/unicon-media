@@ -16,5 +16,5 @@ const options = {
 app.use(express.static(path.resolve("./client"))); // public 폴더에 넣어둬
 
 https.createServer(options, app).listen(5500, () => {
-  console.log("🔒 HTTPS server running at https://localhost:5500");
+  console.log("HTTPS server running at https://localhost:5500");
 });

@@ -1,12 +1,9 @@
-// server/attendance-worker.js
-
 import { createClient } from "redis";
-import mysql from 'mysql2/promise'; //  mysql2/promise 라이브러리 import
+import mysql from 'mysql2/promise';
 
 import dotenv from "dotenv";
 dotenv.config();
-
-// import axios from "axios"; -> API 소통하기 위한 Import
+// import axios from "axios"; -> API 소통하기 위한 Import -> 추후 API 서버와 통신시 사용
 
 const redisClient = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
@@ -39,7 +36,7 @@ async function processQueue() {
   // console.log("REIDS")
 
   try {
-    // lrange와 ltrim을 사용해 큐에서 데이터를 안전하게 가져오고 처리된 항목을 제거합니다.
+    // lrange와 ltrim을 사용해 큐에서 데이터를 안전하게 가져오고 처리된 항목을 제거
     const recordsToProcess = await redisClient.lRange(
       ATTENDANCE_QUEUE_KEY,
       0,
@@ -47,11 +44,8 @@ async function processQueue() {
     );
 
     if (recordsToProcess.length === 0) {
-      // console.log('[Worker] No attendance records to process.');
       return;
     }
-
-    console.log(`[Worker] Processing ${recordsToProcess.length} attendance records...`);
 
     // 커넥션 풀에서 커넥션 가져오기
     connection = await dbPool.getConnection();
@@ -87,7 +81,7 @@ async function processQueue() {
     // DB에 Batch Insert 실행
     await connection.query(sql, [values]);
 
-    // // ProWorks의 배치 저장 API 호출
+    // ProWorks의 배치 저장 API 호출
     // await axios.post(`${PROWORKS_API_URL}/ATT0001BatchUpdate.pwkjson`, {
     //   attendanceList: recordsToProcess.map(JSON.parse), // JSON 문자열을 객체 배열로 변환
     // });
@@ -95,8 +89,6 @@ async function processQueue() {
 
     // 처리된 항목들을 큐에서 제거
     await redisClient.lTrim(ATTENDANCE_QUEUE_KEY, recordsToProcess.length, -1);
-
-    console.log(`[Worker] Successfully saved ${recordsToProcess.length} records to DB.`);
   } catch (error) {
     console.error("[Worker] Error processing attendance queue:", error.message);
     // DB 저장 실패 시, 큐에서 데이터를 제거하지 않아 다음 시도에 재처리될 수 있도록 함
@@ -110,7 +102,6 @@ async function processQueue() {
 
 async function startWorker() {
   await redisClient.connect();
-  console.log(" Attendance Worker started. Processing queue every 5 seconds.");
   setInterval(processQueue, INTERVAL);
 }
 

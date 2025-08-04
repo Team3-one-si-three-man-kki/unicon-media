@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config(); // 이 코드를 최상단에 추가합니다.
+dotenv.config();
 import os from "os";
 
 // 로컬 IP 주소 자동 감지

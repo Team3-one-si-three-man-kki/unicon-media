@@ -16,29 +16,19 @@ export class RoomClient extends EventEmitter {
     this.producerToPeerIdMap = new Map(); // producerId -> peerId 맵 추가
     this.actionCallbackMap = new Map();
     this.pendingConsumeList = [];
-    this.isAdmin = false; //    관리자 여부
-    this.screenProducer = null; //    화면 공유 프로듀서
-    this.myPeerId = null; // ✅ 자신의 peerId를 저장할 속성 추가
+    this.isAdmin = false;
+    this.screenProducer = null; // 화면 공유 프로듀서
+    this.myPeerId = null; // 자신의 peerId를 저장할 속성 추가
   }
 
   join(roomId, userName, userEmail, tenantId) {
-    //    roomId를 인자로 받습니다.
     if (!roomId) {
       throw new Error("roomId is required to join a room");
     }
-    //    WebSocket 접속 주소에 roomId를 쿼리 파라미터로 추가합니다.
-    // WebSocket 접속 주소를 현재 페이지의 호스트 주소(IP 또는 도메인)를 동적으로 사용하도록 수정합니다.
-    // 이렇게 하면 서버 주소가 변경되어도 클라이언트 코드를 수정할 필요가 없습니다.
-    // 포트는 3000으로 고정합니다.
     const wsUrl = `wss://${process.env.WEBSOCKET_URL}/?roomId=${roomId}&userName=${encodeURIComponent(userName)}&userEmail=${encodeURIComponent(userEmail)}&tenantId=${encodeURIComponent(tenantId)}`;
-    console.log(`Connecting to WebSocket: ${wsUrl}`);
     this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
-      console.log("   WebSocket connected");
       this.emit("connected", this.ws); // main.js에 연결 성공을 알림
-
-      // CanvasModule 초기화 로직을 main.js로 이동시켰으므로 이 코드는 제거합니다.
-
       try {
         this.device = new window.mediasoupClient.Device();
         this.ws.send(JSON.stringify({ action: "getRtpCapabilities" }));
@@ -49,7 +39,6 @@ export class RoomClient extends EventEmitter {
 
     this.ws.onmessage = async (event) => {
       const msg = JSON.parse(event.data);
-      console.log("    Received:", msg);
 
       const cb = this.actionCallbackMap.get(msg.action);
       if (cb) {
@@ -64,9 +53,9 @@ export class RoomClient extends EventEmitter {
           this.myPeerId = msg.data.peerId; // 이 시점에서 myPeerId가 설정됨
           this.emit("adminStatus", msg.data); // UI 매니저에게 알림
           break;
-        case "canvas": // 추가된 부분
-          this.emit("canvas", msg.data); // 추가된 부분
-          break; // 추가된 부분
+        case "canvas":
+          this.emit("canvas", msg.data);
+          break;
         case "rtpCapabilities":
           await this._handleRtpCapabilities(msg.data);
           break;
@@ -88,19 +77,16 @@ export class RoomClient extends EventEmitter {
         case "producerClosed":
           this._handleProducerClosed(msg);
           break;
-        // ✅ [추가] 다른 참여자의 프로듀서 상태 변경 알림을 처리
         case "producerStateChanged": {
           const { producerId, kind, state } = msg.data;
           if (state === "pause") {
             if (kind === "video")
               this.emit("remote-producer-pause", { producerId });
-            // 필요하다면 오디오 pause 처리도 추가
             if (kind === "audio")
               this.emit("remote-audio-pause", { producerId });
           } else if (state === "resume") {
             if (kind === "video")
               this.emit("remote-producer-resume", { producerId });
-            // 필요하다면 오디오 resume 처리도 추가
             if (kind === "audio")
               this.emit("remote-audio-resume", { producerId });
           }
@@ -136,10 +122,9 @@ export class RoomClient extends EventEmitter {
   }
 
   _handlePeerClosed({ peerId }) {
-    console.log(` Peer ${peerId} has left the room.`);
-    // 이 peer가 남긴 모든 consumer를 찾아서 정리합니다.
+    // 이 peer가 남긴 모든 consumer를 찾아서 정리
     for (const consumer of this.consumers.values()) {
-      if (consumer.appData.peerId === peerId) { // consumer 생성 시 peerId를 저장해두어야 함
+      if (consumer.appData.peerId === peerId) { // consumer 생성 시 peerId를 저장
         consumer.close();
         this.consumers.delete(consumer.id);
         this.emit('consumer-closed', { consumerId: consumer.id, peerId: peerId });
@@ -150,7 +135,6 @@ export class RoomClient extends EventEmitter {
   async _handleRtpCapabilities(data) {
     try {
       await this.device.load({ routerRtpCapabilities: data });
-      console.log("   Device loaded successfully");
       this.ws.send(JSON.stringify({ action: "createTransport" }));
     } catch (err) {
       console.error("    Failed to load device capabilities:", err);
@@ -233,25 +217,21 @@ export class RoomClient extends EventEmitter {
       this._waitForAction("consumerTransportConnected", callback);
     });
 
-    //    recvTransport가 준비되었으므로, 대기 중인 모든 consumer를 처리합니다.
+    //    recvTransport가 준비되었으므로, 대기 중인 모든 consumer를 처리
     const pendingConsumes = [...this.pendingConsumeList];
     this.pendingConsumeList = [];
-    console.log(
-      `   RecvTransport ready. Processing ${pendingConsumes.length} pending consumers.`
-    );
     for (const consumeData of pendingConsumes) {
       await this._consume(consumeData);
     }
   }
 
   async _handleExistingProducers(producers) {
-    console.log(`📋 Found ${producers.length} existing producers.`);
     for (const producer of producers) {
       this.pendingConsumeList.push(producer);
     }
 
     //    recvTransport가 아직 없으면 생성을 요청하고,
-    //    이미 있다면 바로 대기열을 처리하여 타이밍 문제를 해결합니다.
+    //    이미 있다면 바로 대기열을 처리하여 타이밍 문제를 해결.
     if (!this.recvTransport) {
       this.ws.send(JSON.stringify({ action: "createConsumerTransport" }));
     } else {
@@ -264,7 +244,6 @@ export class RoomClient extends EventEmitter {
   }
 
   async _handleNewProducerAvailable(producerInfo) {
-    console.log("     A new producer is available.", producerInfo);
     const { producerId, kind, appData } = producerInfo;
     const consumeData = { producerId, kind, appData }; // appData도 전달
 
@@ -284,8 +263,6 @@ export class RoomClient extends EventEmitter {
       );
       return;
     }
-
-    console.log(`     Requesting to consume producer ${producerId}`);
     if (!this.recvTransport) {
       console.warn("recvTransport is not ready, queuing consume request");
       this.pendingConsumeList.push({ producerId, kind });
@@ -312,11 +289,10 @@ export class RoomClient extends EventEmitter {
         this.producerToPeerIdMap.set(producerId, appData.peerId);
       }
 
-      // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생시킵니다.
+      // UI 매니저가 화면에 그릴 수 있도록 이벤트를 발생
       this.emit("new-consumer", consumer);
 
-      // 4. 생성된 consumer를 즉시 resume하도록 서버에 요청합니다.
-      console.log(` Resuming consumer ${consumer.id}`);
+      // 4. 생성된 consumer를 즉시 resume하도록 서버에 요청
       this.ws.send(
         JSON.stringify({
           action: "resumeConsumer",
@@ -329,7 +305,6 @@ export class RoomClient extends EventEmitter {
   }
 
   _handleProducerClosed({ producerId }) {
-    console.log(` Producer ${producerId} closed.`);
     const consumer = this.producerIdToConsumer.get(producerId);
     if (consumer) {
       consumer.close();
@@ -365,7 +340,7 @@ export class RoomClient extends EventEmitter {
       this.ws.send(JSON.stringify({ action, data }));
     });
   }
-  //    오디오 트랙을 끄거나 켭니다.
+  //    오디오 트랙을 끄거나 켬
   async setAudioEnabled(enabled) {
     const audioProducer = this._findProducerByKind("audio");
     if (!audioProducer) return;
@@ -375,8 +350,7 @@ export class RoomClient extends EventEmitter {
     } else {
       await audioProducer.pause();
     }
-    // 필요하다면 서버에 음소거 상태를 알리는 시그널링을 보낼 수 있습니다.
-    // ✅ [추가] 서버에 프로듀서 상태 변경을 알립니다.
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
@@ -391,9 +365,8 @@ export class RoomClient extends EventEmitter {
     }
   }
 
-  //    비디오 트랙을 끄거나 켭니다.
+  //    비디오 트랙을 끄거나 켬
   async setVideoEnabled(enabled) {
-    // [수정] 화면 공유가 아닌 '웹캠' 프로듀서를 명확하게 찾습니다.
     const videoProducer = this._findProducerByKind("video", "webcam");
     if (!videoProducer) return;
 
@@ -424,12 +397,9 @@ export class RoomClient extends EventEmitter {
         continue;
       }
 
-      // source 인자가 없으면 종류만 맞는 첫 번째 프로듀서를 반환 (오디오의 경우)
       if (!source) {
         return producer;
       }
-
-      // source 인자가 있으면 appData.source와 일치하는지 확인 (비디오의 경우)
       const producerSource = producer.appData?.source || "webcam";
       if (producerSource === source) {
         return producer;
@@ -458,7 +428,6 @@ export class RoomClient extends EventEmitter {
 
       // 브라우저의 '공유 중지' 버튼 클릭 감지
       track.onended = () => {
-        console.log("Screen sharing stopped by browser button.");
         this.stopScreenShare();
       };
 
@@ -476,8 +445,6 @@ export class RoomClient extends EventEmitter {
       console.warn("No active screen share to stop.");
       return;
     }
-
-    console.log(" Requesting to stop screen share.");
     // 서버에 화면 공유 중지를 명시적으로 요청
     this.ws.send(
       JSON.stringify({
